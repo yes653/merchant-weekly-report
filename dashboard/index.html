@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>商户准入周报看板 v3.0-FIX</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="data.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #060b14; --card: rgba(10, 20, 35, 0.8); --card-solid: #0a1423;
+    --border: rgba(0, 240, 255, 0.12); --border-bright: rgba(0, 240, 255, 0.3);
+    --neon-cyan: #00f0ff; --neon-magenta: #ff00aa; --neon-green: #00ff88;
+    --neon-amber: #ffaa00; --neon-red: #ff3355; --neon-blue: #4488ff;
+    --accent: var(--neon-cyan); --text: #e0f0ff; --text-dim: #5a7a9a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Rajdhani', -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh; padding: 24px;
+    position: relative; overflow-x: hidden;
+  }
+  .deep-bg {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: -4; pointer-events: none;
+    background:
+      radial-gradient(ellipse 120% 80% at 50% 0%, rgba(0,240,255,0.04) 0%, transparent 50%),
+      radial-gradient(ellipse 80% 60% at 80% 100%, rgba(255,0,170,0.03) 0%, transparent 50%),
+      radial-gradient(ellipse 60% 40% at 10% 60%, rgba(0,255,136,0.02) 0%, transparent 50%),
+      linear-gradient(180deg, #040810 0%, #060b14 30%, #081020 70%, #060b14 100%);
+  }
+  .matrix-bg {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: -3;
+    pointer-events: none; overflow: hidden; opacity: 0.06;
+    background-image:
+      linear-gradient(rgba(0,240,255,0.3) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,240,255,0.3) 1px, transparent 1px);
+    background-size: 60px 60px;
+    animation: matrixScroll 20s linear infinite;
+  }
+  @keyframes matrixScroll { 0% { transform: translateY(0); } 100% { transform: translateY(60px); } }
+  .scanline-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: -2; pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  }
+  .scan-beam {
+    position: fixed; left: 0; right: 0; height: 2px; z-index: -1; pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgba(0,240,255,0.3), rgba(0,240,255,0.6), rgba(0,240,255,0.3), transparent);
+    box-shadow: 0 0 20px rgba(0,240,255,0.3), 0 0 60px rgba(0,240,255,0.1);
+    animation: scanBeam 8s linear infinite;
+  }
+  @keyframes scanBeam { 0% { top: -2px; opacity: 0; } 5% { opacity: 1; } 95% { opacity: 1; } 100% { top: 100vh; opacity: 0; } }
+  .data-stream { position: fixed; z-index: -2; pointer-events: none; overflow: hidden; top: 0; left: 0; right: 0; bottom: 0; }
+  .data-particle { position: absolute; font-family: 'Orbitron', monospace; font-size: 10px; color: var(--neon-cyan); opacity: 0; animation: dataFall linear infinite; }
+  @keyframes dataFall { 0% { transform: translateY(-20px); opacity: 0; } 10% { opacity: 0.15; } 90% { opacity: 0.15; } 100% { transform: translateY(100vh); opacity: 0; } }
+
+  .header { text-align: center; margin-bottom: 20px; }
+  .header h1 {
+    font-family: 'Orbitron', monospace; font-size: 26px; font-weight: 800; letter-spacing: 4px;
+    color: var(--neon-cyan);
+    text-shadow: 0 0 10px rgba(0,240,255,0.5), 0 0 30px rgba(0,240,255,0.2);
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    animation: glitchTitle 8s ease-in-out infinite;
+  }
+  @keyframes glitchTitle {
+    0%, 92%, 94%, 96%, 100% { transform: translate(0); }
+    93% { transform: translate(-2px, 1px); text-shadow: 0 0 10px rgba(255,0,170,0.5); }
+    95% { transform: translate(2px, -1px); text-shadow: 0 0 10px rgba(0,255,136,0.5); }
+  }
+  .header h1::before {
+    content: ''; display: inline-block; width: 32px; height: 32px;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="35" r="22" fill="%2300f0ff"/><rect x="30" y="55" width="40" height="35" rx="8" fill="%2300f0ff"/><circle cx="42" cy="32" r="4" fill="%23000"/><circle cx="58" cy="32" r="4" fill="%23000"/><ellipse cx="50" cy="44" rx="8" ry="5" fill="%2300ff88"/><path d="M20 45 Q50 25 80 45" stroke="%23ffaa00" stroke-width="4" fill="none" stroke-linecap="round"/></svg>') center/contain no-repeat;
+    vertical-align: middle; filter: drop-shadow(0 0 8px rgba(0,240,255,0.6));
+    animation: loopBounce 2s ease-in-out infinite;
+  }
+  @keyframes loopBounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  .header .sub {
+    font-family: 'Rajdhani', sans-serif; color: var(--text-dim); font-size: 13px;
+    margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 8px; letter-spacing: 1px;
+  }
+  .status-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--neon-green); box-shadow: 0 0 6px rgba(0,255,136,0.8);
+    animation: pulse 2s infinite;
+  }
+  .status-dot.offline { background: var(--neon-red); box-shadow: 0 0 6px rgba(255,51,85,0.8); }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  /* === KPI === */
+  .kpi-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  .kpi-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px 16px; text-align: center; transition: all 0.3s;
+    position: relative; overflow: hidden; backdrop-filter: blur(12px);
+  }
+  .kpi-card:hover { transform: translateY(-3px); border-color: var(--border-bright); }
+  .kpi-card::before {
+    content: ''; position: absolute; top: -1px; right: -1px; width: 30px; height: 30px;
+    border-top: 2px solid var(--neon-cyan); border-right: 2px solid var(--neon-cyan);
+    border-radius: 0 14px 0 0; opacity: 0.5;
+  }
+  .kpi-card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+  .kpi-card.kpi-merch-approve::after { background: linear-gradient(90deg, var(--neon-green), transparent); }
+  .kpi-card.kpi-merch-reject::after { background: linear-gradient(90deg, var(--neon-red), transparent); }
+  .kpi-card.kpi-sub-approve::after { background: linear-gradient(90deg, var(--neon-cyan), transparent); }
+  .kpi-card.kpi-sub-reject::after { background: linear-gradient(90deg, var(--neon-amber), transparent); }
+  .kpi-card.kpi-merch-approve { border-color: rgba(0,255,136,0.15); }
+  .kpi-card.kpi-merch-reject { border-color: rgba(255,51,85,0.15); }
+  .kpi-card.kpi-sub-approve { border-color: rgba(0,240,255,0.15); }
+  .kpi-card.kpi-sub-reject { border-color: rgba(255,170,0,0.15); }
+  .kpi-card .kpi-label { font-size: 14px; color: var(--text-dim); margin-bottom: 6px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700; }
+  .kpi-card .kpi-value { font-family: 'Orbitron', monospace; font-size: 30px; font-weight: 700; }
+  .kpi-card.kpi-merch-approve .kpi-value { color: var(--neon-green); text-shadow: 0 0 12px rgba(0,255,136,0.4); }
+  .kpi-card.kpi-merch-reject .kpi-value { color: var(--neon-red); text-shadow: 0 0 12px rgba(255,51,85,0.4); }
+  .kpi-card.kpi-sub-approve .kpi-value { color: var(--neon-cyan); text-shadow: 0 0 12px rgba(0,240,255,0.4); }
+  .kpi-card.kpi-sub-reject .kpi-value { color: var(--neon-amber); text-shadow: 0 0 12px rgba(255,170,0,0.4); }
+  .kpi-card .kpi-sub {
+    font-size: 15px; font-weight: 700; margin-top: 6px; letter-spacing: 1px;
+    font-family: 'Orbitron', monospace;
+  }
+  .kpi-trend-up { color: #ff4d6a; text-shadow: 0 0 8px rgba(255,77,106,0.5); }
+  .kpi-trend-down { color: var(--neon-green); text-shadow: 0 0 8px rgba(0,255,136,0.5); }
+  .kpi-trend-flat { color: var(--text-dim); }
+
+  /* === Section === */
+  .section-divider {
+    display: flex; align-items: center; gap: 12px; margin: 28px 0 18px;
+  }
+  .section-divider .sd-line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--border-bright), transparent); }
+  .section-divider h2 {
+    font-family: 'Orbitron', monospace; font-size: 15px; font-weight: 700;
+    white-space: nowrap; display: flex; align-items: center; gap: 8px; letter-spacing: 2px;
+  }
+  .section-divider.merchant h2 { color: var(--neon-green); text-shadow: 0 0 8px rgba(0,255,136,0.3); }
+  .section-divider.audit h2 { color: var(--neon-cyan); text-shadow: 0 0 8px rgba(0,240,255,0.3); }
+
+  /* === 筛选器 === */
+  .filter-bar {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap;
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 18px; backdrop-filter: blur(10px);
+  }
+  .filter-bar label { font-size: 13px; color: var(--text-dim); white-space: nowrap; font-weight: 600; }
+  .filter-bar select, .filter-bar input[type="week"] {
+    padding: 8px 12px; background: rgba(8,18,32,0.9); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-family: 'Rajdhani', sans-serif;
+    font-size: 14px; outline: none; cursor: pointer; min-width: 130px;
+  }
+  .filter-bar select:focus, .filter-bar input[type="week"]:focus { border-color: var(--neon-cyan); }
+  .filter-sep { width: 1px; height: 24px; background: var(--border); }
+
+  /* 复选框组 */
+  .checkbox-group { display: flex; gap: 12px; flex-wrap: wrap; }
+  .checkbox-group label {
+    display: flex; align-items: center; gap: 6px; cursor: pointer;
+    font-size: 13px; color: var(--text-dim); transition: color 0.2s;
+  }
+  .checkbox-group input[type="checkbox"] { display: none; }
+  .cb-box {
+    width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--border-bright);
+    display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .cb-box::after {
+    content: ''; width: 8px; height: 8px; border-radius: 2px;
+    background: transparent; transition: background 0.2s;
+  }
+  .checkbox-group input:checked + .cb-box {
+    border-color: var(--neon-cyan); background: rgba(0,240,255,0.15);
+  }
+  .checkbox-group input:checked + .cb-box::after { background: var(--neon-cyan); }
+  .checkbox-group input:checked ~ .cb-label { color: var(--text); }
+
+  /* === 汇总统计区 === */
+  .summary-panel {
+    background: var(--card); border: 1px solid var(--border-bright); border-radius: 14px;
+    padding: 20px; margin-bottom: 20px; backdrop-filter: blur(12px);
+    border-left: 3px solid var(--neon-cyan);
+  }
+  .summary-panel h3 {
+    font-family: 'Orbitron', monospace; font-size: 13px; font-weight: 700;
+    color: var(--neon-cyan); margin-bottom: 14px; letter-spacing: 2px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .summary-panel h3::before {
+    content: ''; width: 4px; height: 16px; background: var(--neon-cyan); border-radius: 2px;
+  }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+  .summary-item { text-align: center; }
+  .summary-item .s-label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; letter-spacing: 1px; text-transform: uppercase; }
+  .summary-item .s-value {
+    font-family: 'Orbitron', monospace; font-size: 26px; font-weight: 700;
+  }
+  .s-val-green { color: var(--neon-green); text-shadow: 0 0 8px rgba(0,255,136,0.3); }
+  .s-val-red { color: var(--neon-red); text-shadow: 0 0 8px rgba(255,51,85,0.3); }
+  .s-val-cyan { color: var(--neon-cyan); text-shadow: 0 0 8px rgba(0,240,255,0.3); }
+  .s-val-amber { color: var(--neon-amber); text-shadow: 0 0 8px rgba(255,170,0,0.3); }
+
+  /* 按人员汇总表格 */
+  .person-summary-table {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    background: rgba(8,18,32,0.5); border-radius: 10px; overflow: hidden;
+    margin-top: 12px;
+  }
+  .person-summary-table th {
+    padding: 10px 14px; background: rgba(0,240,255,0.06);
+    font-family: 'Orbitron', monospace; font-size: 11px; font-weight: 600;
+    color: var(--neon-cyan); letter-spacing: 1px; text-align: left;
+    border-bottom: 1px solid var(--border); text-transform: uppercase;
+  }
+  .person-summary-table td {
+    padding: 10px 14px; font-size: 14px; font-weight: 500;
+    border-bottom: 1px solid rgba(0,240,255,0.05);
+  }
+  .person-summary-table tr:last-child td { border-bottom: none; }
+
+  /* === 视图切换 === */
+  .view-tabs {
+    display: flex; gap: 4px; margin-bottom: 20px;
+    background: var(--card); border-radius: 10px; padding: 4px;
+    border: 1px solid var(--border); backdrop-filter: blur(10px);
+  }
+  .view-tab {
+    flex: 1; padding: 10px; text-align: center; border-radius: 8px;
+    background: transparent; border: none; color: var(--text-dim);
+    font-family: 'Rajdhani', sans-serif; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: all 0.3s; letter-spacing: 1px;
+  }
+  .view-tab.active {
+    background: linear-gradient(135deg, rgba(0,240,255,0.2), rgba(0,240,255,0.05));
+    color: var(--neon-cyan); box-shadow: 0 0 15px rgba(0,240,255,0.15);
+    border: 1px solid rgba(0,240,255,0.3);
+  }
+  .view-section { display: none; }
+  .view-section.visible { display: block; }
+
+  .chart-container {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px; margin-bottom: 20px; backdrop-filter: blur(12px);
+    position: relative;
+  }
+  .chart-container canvas { max-height: 400px; }
+
+  .data-table {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    background: var(--card); border-radius: 14px; overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .data-table thead th {
+    background: rgba(0,240,255,0.06); padding: 14px 16px;
+    font-family: 'Orbitron', monospace; font-size: 12px; font-weight: 600;
+    color: var(--neon-cyan); letter-spacing: 1px; text-align: left;
+    border-bottom: 1px solid var(--border); text-transform: uppercase;
+  }
+  .data-table tbody td {
+    padding: 12px 16px; border-bottom: 1px solid rgba(0,240,255,0.05);
+    font-size: 14px; font-weight: 500;
+  }
+  .data-table tbody tr:hover { background: rgba(0,240,255,0.04); }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .table-footer {
+    text-align: center; padding: 12px; background: rgba(0,240,255,0.03);
+    border-top: 1px solid var(--border); cursor: pointer; transition: all 0.3s;
+    font-family: 'Rajdhani', sans-serif; font-size: 13px; color: var(--neon-cyan);
+    letter-spacing: 1px;
+  }
+  .table-footer:hover { background: rgba(0,240,255,0.08); }
+  .person-val { color: var(--neon-cyan); }
+  .approve-val { color: var(--neon-green); font-family: 'Orbitron', monospace; font-weight: 600; }
+  .reject-val { color: var(--neon-red); font-family: 'Orbitron', monospace; font-weight: 600; }
+  .rate-val { font-family: 'Orbitron', monospace; font-weight: 600; }
+  .rate-high { color: var(--neon-green); }
+  .rate-mid { color: var(--neon-amber); }
+  .rate-low { color: var(--neon-red); }
+
+  .loading-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--bg); z-index: 9999;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px; transition: opacity 0.5s;
+  }
+  .loading-overlay.fade-out { opacity: 0; pointer-events: none; }
+  .loading-spinner {
+    width: 48px; height: 48px; border: 3px solid var(--border);
+    border-top-color: var(--neon-cyan); border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-family: 'Orbitron', monospace; font-size: 14px; color: var(--neon-cyan); letter-spacing: 2px; }
+  .error-banner {
+    background: rgba(255,51,85,0.15); border: 1px solid rgba(255,51,85,0.3);
+    border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 12px; color: var(--neon-red); font-size: 14px;
+  }
+  .error-banner.hidden { display: none; }
+  .footer {
+    text-align: center; margin-top: 32px; padding-top: 16px;
+    border-top: 1px solid var(--border); color: var(--text-dim); font-size: 12px;
+  }
+  @media (max-width: 768px) {
+    body { padding: 12px; }
+    .kpi-bar { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .kpi-card .kpi-value { font-size: 22px; }
+    .header h1 { font-size: 18px; letter-spacing: 2px; }
+    .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    .filter-bar { flex-direction: column; align-items: flex-start; }
+    .filter-sep { display: none; }
+    .data-table { font-size: 12px; }
+    .data-table thead th, .data-table tbody td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">SYNCING DATA...</div>
+</div>
+
+<div class="deep-bg"></div>
+<div class="matrix-bg"></div>
+<div class="scanline-overlay"></div>
+<div class="scan-beam"></div>
+<div class="data-stream" id="dataStream"></div>
+
+<div class="header">
+  <div style="background:rgba(255,51,85,0.2);border:1px solid var(--neon-red);color:var(--neon-red);padding:8px;text-align:center;font-family:'Orbitron',monospace;font-size:12px;margin-bottom:12px;border-radius:8px;">✅ 审计逻辑已更新：周五-周四 (v3.0)</div>
+  <h1>商户准入周报</h1>
+  <div class="sub">
+    <span class="status-dot" id="statusDot"></span>
+    <span>LOOP SYSTEM v3.1</span>
+    <span>·</span>
+    <span id="updateTime">数据加载中</span>
+  </div>
+</div>
+
+<div class="error-banner hidden" id="errorBanner">
+  <span>⚠️</span>
+  <span>数据库连接失败，请检查网络或联系管理员</span>
+  <button onclick="loadData()" style="margin-left:auto;padding:6px 16px;background:rgba(0,240,255,0.15);border:1px solid var(--neon-cyan);border-radius:6px;color:var(--neon-cyan);cursor:pointer;font-family:'Rajdhani',sans-serif;">重试</button>
+</div>
+
+<!-- KPI -->
+<div class="kpi-bar">
+  <div class="kpi-card kpi-merch-approve">
+    <div class="kpi-label">商户准入通过</div>
+    <div class="kpi-value" id="kpiMerchApprove">--</div>
+    <div class="kpi-sub" id="kpiMerchApproveSub"></div>
+  </div>
+  <div class="kpi-card kpi-merch-reject">
+    <div class="kpi-label">商户准入驳回</div>
+    <div class="kpi-value" id="kpiMerchReject">--</div>
+    <div class="kpi-sub" id="kpiMerchRejectSub"></div>
+  </div>
+  <div class="kpi-card kpi-sub-approve">
+    <div class="kpi-label">二级户通过</div>
+    <div class="kpi-value" id="kpiSubApprove">--</div>
+    <div class="kpi-sub" id="kpiSubApproveSub"></div>
+  </div>
+  <div class="kpi-card kpi-sub-reject">
+    <div class="kpi-label">二级户驳回</div>
+    <div class="kpi-value" id="kpiSubReject">--</div>
+    <div class="kpi-sub" id="kpiSubRejectSub"></div>
+  </div>
+</div>
+
+<!-- ═══════ 商户准入区 ═══════ -->
+<div class="section-divider merchant">
+  <div class="sd-line"></div>
+  <h2>📊 商户准入</h2>
+  <div class="sd-line"></div>
+</div>
+
+<!-- 筛选：时间范围 + 人员 -->
+<div class="filter-bar">
+  <label>时间范围：</label>
+  <select id="merchStartWeek"><option value="">起始周</option></select>
+  <span style="color:var(--text-dim)">→</span>
+  <select id="merchEndWeek"><option value="">结束周</option></select>
+  <div class="filter-sep"></div>
+  <label>填写人：</label>
+  <select id="merchPersonFilter"><option value="all">全部人员</option></select>
+</div>
+
+<!-- 汇总统计面板 -->
+<div class="summary-panel" id="merchSummaryPanel">
+  <h3>汇总统计</h3>
+  <div class="summary-grid">
+    <div class="summary-item"><div class="s-label">准入通过</div><div class="s-value s-val-green" id="sumMerchApprove">--</div></div>
+    <div class="summary-item"><div class="s-label">准入驳回</div><div class="s-value s-val-red" id="sumMerchReject">--</div></div>
+    <div class="summary-item"><div class="s-label">合计</div><div class="s-value s-val-cyan" id="sumMerchTotal">--</div></div>
+    <div class="summary-item"><div class="s-label">通过率</div><div class="s-value s-val-amber" id="sumMerchRate">--</div></div>
+    <div class="summary-item"><div class="s-label">覆盖周数</div><div class="s-value s-val-cyan" id="sumMerchWeeks">--</div></div>
+    <div class="summary-item"><div class="s-label">覆盖人员</div><div class="s-value s-val-cyan" id="sumMerchPersons">--</div></div>
+  </div>
+  <!-- 按人员汇总表 -->
+  <table class="person-summary-table" id="merchPersonSummaryTable">
+    <thead><tr><th>填写人</th><th>准入通过</th><th>准入驳回</th><th>合计</th><th>通过率</th></tr></thead>
+    <tbody id="merchPersonSummaryBody"></tbody>
+  </table>
+</div>
+
+<!-- 视图切换 -->
+<div class="view-tabs">
+  <button class="view-tab active" data-view="chart">图表视图</button>
+  <button class="view-tab" data-view="rate">通过率趋势</button>
+  <button class="view-tab" data-view="table">数据明细</button>
+</div>
+
+<div class="view-section visible" id="viewChart">
+  <div class="chart-container"><canvas id="merchantChart"></canvas></div>
+</div>
+<div class="view-section" id="viewRate">
+  <div class="chart-container"><canvas id="rateChart"></canvas></div>
+</div>
+<div class="view-section" id="viewTable">
+  <table class="data-table">
+    <thead><tr><th>周次</th><th>填写人</th><th>准入通过</th><th>准入驳回</th><th>通过率</th></tr></thead>
+    <tbody id="merchantTableBody"></tbody>
+  </table>
+</div>
+
+<!-- ═══════ 二级户审核区 ═══════ -->
+<div class="section-divider audit">
+  <div class="sd-line"></div>
+  <h2>🔍 二级户审核</h2>
+  <div class="sd-line"></div>
+</div>
+
+<!-- 筛选：时间范围 + 审核类型多选 -->
+<div class="filter-bar">
+  <label>时间范围：</label>
+  <select id="auditStartWeek"><option value="">起始周</option></select>
+  <span style="color:var(--text-dim)">→</span>
+  <select id="auditEndWeek"><option value="">结束周</option></select>
+  <div class="filter-sep"></div>
+  <label>审核类型：</label>
+  <div class="checkbox-group" id="auditTypeCheckboxes">
+    <label><input type="checkbox" value="sysApprove" checked><span class="cb-box"></span><span class="cb-label">系统通过</span></label>
+    <label><input type="checkbox" value="sysReject" checked><span class="cb-box"></span><span class="cb-label">系统驳回</span></label>
+    <label><input type="checkbox" value="manApprove" checked><span class="cb-box"></span><span class="cb-label">人工通过</span></label>
+    <label><input type="checkbox" value="manReject" checked><span class="cb-box"></span><span class="cb-label">人工驳回</span></label>
+  </div>
+</div>
+
+<!-- 二级户汇总统计 -->
+<div class="summary-panel" id="auditSummaryPanel">
+  <h3>汇总统计</h3>
+  <div class="summary-grid" id="auditSummaryGrid"></div>
+</div>
+
+<!-- 二级户图表 -->
+<div class="chart-container"><canvas id="auditChart"></canvas></div>
+
+<!-- 二级户表格 -->
+<table class="data-table" style="margin-top:16px;">
+  <thead><tr><th>周次</th><th>系统审核通过</th><th>系统审核驳回</th><th>人工审核通过</th><th>人工审核驳回</th><th>综合通过率</th></tr></thead>
+  <tbody id="auditTableBody"></tbody>
+</table>
+
+<div class="footer">
+  商户准入周报看板 · 数据更新于 <span id="footerTime"></span> · LOOP SYSTEM v3.0 · <a href="admin.html" style="color:var(--text-dim);text-decoration:none;" title="数据管理">⚙</a>
+</div>
+
+<script>
+let D = { persons: [], merchant: [], audit: [], lastUpdated: '' };
+
+// ─── 辅助函数 ─────────────────────────────
+function displayWeek(w) {
+  if (!w) return '--';
+  const m = w.match(/(\d{4})-W(\d{2})/);
+  return m ? `${m[1]}年第${parseInt(m[2])}周` : w;
+}
+function displayWeekWithRange(w) {
+  if (!w) return '--';
+  const m = w.match(/(\d{4})-W(\d{2})/);
+  if (!m) return w;
+  const year = parseInt(m[1]), weekNum = parseInt(m[2]);
+  // ISO 8601: 第1周是包含1月4日的那一周（周一为每周开始）
+  const jan4 = new Date(year, 0, 4);
+  const dayOfWeek = jan4.getDay() || 7; // 周日变7
+  const mondayOfWeek1 = new Date(jan4);
+  mondayOfWeek1.setDate(jan4.getDate() - dayOfWeek + 1);
+  const targetMonday = new Date(mondayOfWeek1);
+  targetMonday.setDate(mondayOfWeek1.getDate() + (weekNum - 1) * 7);
+  const sunday = new Date(targetMonday);
+  sunday.setDate(targetMonday.getDate() + 6);
+  const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
+  return `${year}年第${weekNum}周 (${fmt(targetMonday)}-${fmt(sunday)})`;
+}
+function displayAuditWeekWithRange(w) {
+  if (!w) return '--';
+  const m = w.match(/(\d{4})-W(\d{2})/);
+  if (!m) return w;
+  const year = parseInt(m[1]), weekNum = parseInt(m[2]);
+  
+  // 业务周定义：上周五 00:00 到 本周四 23:59
+  // 标签 Wxx 是以“本周四”所在的 ISO 周为准
+  
+  // 1. 找到该 ISO 周的周四
+  const jan4 = new Date(year, 0, 4);
+  const dayOfWeek = jan4.getDay() || 7;
+  const mondayOfWeek1 = new Date(jan4);
+  mondayOfWeek1.setDate(jan4.getDate() - dayOfWeek + 1);
+  const targetMonday = new Date(mondayOfWeek1);
+  targetMonday.setDate(mondayOfWeek1.getDate() + (weekNum - 1) * 7);
+  const thursday = new Date(targetMonday);
+  thursday.setDate(targetMonday.getDate() + 3); // ISO 周的周四是 +3
+  
+  // 2. 业务周的结束日就是这个周四
+  const endDate = thursday;
+  
+  // 3. 业务周的开始日是上一个周五（即 endDate 往前推 6 天）
+  const startDate = new Date(endDate);
+  startDate.setDate(endDate.getDate() - 6);
+  
+  const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
+  return `${year}年第${weekNum}周 (${fmt(startDate)}-${fmt(endDate)})`;
+}
+function getWeeks(data) { return [...new Set(data.map(d => d.week))].sort(); }
+function rateClass(rate) {
+  if (rate >= 80) return 'rate-high';
+  if (rate >= 60) return 'rate-mid';
+  return 'rate-low';
+}
+
+// ─── 数据加载 ─────────────────────────────
+async function loadData() {
+  document.getElementById('errorBanner').classList.add('hidden');
+  try {
+    // 从本地 data.js 读取数据
+    if (typeof REPORT_DATA === 'undefined') {
+      throw new Error('REPORT_DATA not found');
+    }
+    
+    D.merchant = (REPORT_DATA.merchant || []).map(d => ({
+      id: d.id || null, week: d.week, person: d.person,
+      merchApprove: d.merchApprove, merchReject: d.merchReject,
+    }));
+    D.audit = (REPORT_DATA.audit || []).map(d => ({
+      id: d.id || null, week: d.week,
+      sysApprove: d.sysApprove, sysReject: d.sysReject,
+      manApprove: d.manApprove, manReject: d.manReject,
+    }));
+    D.persons = [...new Set(D.merchant.map(d => d.person))].filter(Boolean);
+    D.lastUpdated = REPORT_DATA.lastUpdated || new Date().toLocaleDateString('zh-CN');
+
+    document.getElementById('statusDot').classList.remove('offline');
+    document.getElementById('updateTime').textContent = `数据更新于 ${D.lastUpdated}`;
+    document.getElementById('footerTime').textContent = D.lastUpdated;
+
+    populateWeekSelectors();
+    populatePersonFilter();
+    updateKPI();
+    renderMerchantSummary();
+    renderMerchantChart();
+    renderRateChart();
+    renderMerchantTable();
+    renderAuditSummary();
+    renderAuditChart();
+    renderAuditTable();
+
+    const overlay = document.getElementById('loadingOverlay');
+    overlay.classList.add('fade-out');
+    setTimeout(() => overlay.style.display = 'none', 500);
+  } catch (err) {
+    console.error('数据加载失败:', err);
+    document.getElementById('statusDot').classList.add('offline');
+    document.getElementById('updateTime').textContent = '连接失败';
+    document.getElementById('errorBanner').classList.remove('hidden');
+    const overlay = document.getElementById('loadingOverlay');
+    overlay.classList.add('fade-out');
+    setTimeout(() => overlay.style.display = 'none', 500);
+  }
+}
+
+// ─── 筛选器填充 ─────────────────────────────
+function populateWeekSelectors() {
+  const mWeeks = getWeeks(D.merchant);
+  const aWeeks = getWeeks(D.audit);
+  ['merchStartWeek', 'merchEndWeek'].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '<option value="">起始周</option>';
+    mWeeks.forEach(w => { const o = document.createElement('option'); o.value = w; o.textContent = displayWeekWithRange(w); sel.appendChild(o); });
+    if (id === 'merchStartWeek' && mWeeks.length) sel.value = mWeeks[0];
+    if (id === 'merchEndWeek' && mWeeks.length) sel.value = mWeeks[mWeeks.length - 1];
+  });
+  ['auditStartWeek', 'auditEndWeek'].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '<option value="">起始周</option>';
+    aWeeks.forEach(w => { const o = document.createElement('option'); o.value = w; o.textContent = displayAuditWeekWithRange(w); sel.appendChild(o); });
+    if (id === 'auditStartWeek' && aWeeks.length) sel.value = aWeeks[0];
+    if (id === 'auditEndWeek' && aWeeks.length) sel.value = aWeeks[aWeeks.length - 1];
+  });
+}
+
+function populatePersonFilter() {
+  const sel = document.getElementById('merchPersonFilter');
+  sel.innerHTML = '<option value="all">全部人员</option>';
+  D.persons.forEach(p => { const o = document.createElement('option'); o.value = p; o.textContent = p; sel.appendChild(o); });
+}
+
+// ─── 时间范围筛选 ─────────────────────────────
+function getRangeFiltered(data, startId, endId) {
+  const start = document.getElementById(startId).value;
+  const end = document.getElementById(endId).value;
+  let filtered = data;
+  if (start) filtered = filtered.filter(d => d.week >= start);
+  if (end) filtered = filtered.filter(d => d.week <= end);
+  return filtered;
+}
+
+// ─── KPI ─────────────────────────────
+function updateKPI() {
+  const md = D.merchant, ad = D.audit;
+  const mWeeks = getWeeks(md), aWeeks = getWeeks(ad);
+  const latestMW = mWeeks[mWeeks.length - 1], prevMW = mWeeks[mWeeks.length - 2];
+  const latestAW = aWeeks[aWeeks.length - 1], prevAW = aWeeks[aWeeks.length - 2];
+  const latestMerch = md.filter(d => d.week === latestMW);
+  const prevMerch = prevMW ? md.filter(d => d.week === prevMW) : [];
+  const latestAudit = ad.filter(d => d.week === latestAW);
+  const prevAudit = prevAW ? ad.filter(d => d.week === prevAW) : [];
+
+  const sum = (arr, key) => arr.reduce((s, d) => s + (d[key] || 0), 0);
+  const trend = (cur, prev, curWeek, prevWeek) => {
+    const pct = prev && prev !== 0 ? Math.round((cur - prev) / prev * 100) : (cur > 0 ? 100 : 0);
+    let html = '';
+    if (pct === 0) {
+      html = '<span class="kpi-trend-flat">— 0%</span>';
+    } else {
+      const cls = pct > 0 ? 'kpi-trend-up' : 'kpi-trend-down';
+      const arrow = pct > 0 ? '↑' : '↓';
+      html = `<span class="${cls}">${arrow} ${Math.abs(pct)}%</span>`;
+    }
+    if (curWeek && prevWeek) {
+      const curLabel = curWeek.split('-W')[1];
+      const prevLabel = prevWeek.split('-W')[1];
+      html += `<br><span style="font-size:9px;color:var(--text-dim);margin-top:2px;display:inline-block;">${curLabel} vs ${prevLabel}</span>`;
+    }
+    return html;
+  };
+
+  const mApp = sum(latestMerch, 'merchApprove'), mRej = sum(latestMerch, 'merchReject');
+  const pmApp = sum(prevMerch, 'merchApprove'), pmRej = sum(prevMerch, 'merchReject');
+  const aSysApp = sum(latestAudit, 'sysApprove'), aSysRej = sum(latestAudit, 'sysReject');
+  const aManApp = sum(latestAudit, 'manApprove'), aManRej = sum(latestAudit, 'manReject');
+  const paSysApp = sum(prevAudit, 'sysApprove'), paSysRej = sum(prevAudit, 'sysReject');
+  const paManApp = sum(prevAudit, 'manApprove'), paManRej = sum(prevAudit, 'manReject');
+
+  document.getElementById('kpiMerchApprove').textContent = mApp;
+  document.getElementById('kpiMerchApproveSub').innerHTML = trend(mApp, pmApp, latestMW, prevMW);
+  document.getElementById('kpiMerchReject').textContent = mRej;
+  document.getElementById('kpiMerchRejectSub').innerHTML = trend(mRej, pmRej, latestMW, prevMW);
+  document.getElementById('kpiSubApprove').textContent = aSysApp + aManApp;
+  document.getElementById('kpiSubApproveSub').innerHTML = trend(aSysApp + aManApp, paSysApp + paManApp, latestAW, prevAW);
+  document.getElementById('kpiSubReject').textContent = aSysRej + aManRej;
+  document.getElementById('kpiSubRejectSub').innerHTML = trend(aSysRej + aManRej, paSysRej + paManRej, latestAW, prevAW);
+}
+
+// ─── 视图切换 ─────────────────────────────
+document.querySelectorAll('.view-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.view-section').forEach(s => s.classList.remove('visible'));
+    tab.classList.add('active');
+    document.getElementById('view' + tab.dataset.view.charAt(0).toUpperCase() + tab.dataset.view.slice(1)).classList.add('visible');
+  });
+});
+
+// ─── 商户汇总统计 ─────────────────────────────
+function renderMerchantSummary() {
+  let data = getRangeFiltered(D.merchant, 'merchStartWeek', 'merchEndWeek');
+  const personVal = document.getElementById('merchPersonFilter').value;
+  if (personVal !== 'all') data = data.filter(d => d.person === personVal);
+
+  const sum = (key) => data.reduce((s, d) => s + (d[key] || 0), 0);
+  const totalApp = sum('merchApprove'), totalRej = sum('merchReject');
+  const totalAll = totalApp + totalRej;
+  const rate = totalAll === 0 ? '--' : Math.round(totalApp / totalAll * 100) + '%';
+  const weeks = [...new Set(data.map(d => d.week))];
+  const persons = [...new Set(data.map(d => d.person))].filter(Boolean);
+
+  document.getElementById('sumMerchApprove').textContent = totalApp;
+  document.getElementById('sumMerchReject').textContent = totalRej;
+  document.getElementById('sumMerchTotal').textContent = totalAll;
+  document.getElementById('sumMerchRate').textContent = rate;
+  document.getElementById('sumMerchWeeks').textContent = weeks.length;
+  document.getElementById('sumMerchPersons').textContent = persons.length;
+
+  // 按人员汇总
+  const tbody = document.getElementById('merchPersonSummaryBody');
+  if (personVal !== 'all') {
+    // 单人模式：隐藏人员汇总表
+    document.getElementById('merchPersonSummaryTable').style.display = 'none';
+  } else {
+    document.getElementById('merchPersonSummaryTable').style.display = '';
+    const byPerson = {};
+    data.forEach(d => {
+      const p = d.person || '未知';
+      if (!byPerson[p]) byPerson[p] = { app: 0, rej: 0 };
+      byPerson[p].app += (d.merchApprove || 0);
+      byPerson[p].rej += (d.merchReject || 0);
+    });
+    tbody.innerHTML = Object.entries(byPerson).sort((a, b) => b[1].app - a[1].app).map(([p, v]) => {
+      const t = v.app + v.rej;
+      const r = t === 0 ? '--' : Math.round(v.app / t * 100) + '%';
+      const rc = r === '--' ? '' : rateClass(parseInt(r));
+      return `<tr><td class="person-val">${p}</td><td class="approve-val">${v.app}</td><td class="reject-val">${v.rej}</td><td>${t}</td><td class="rate-val ${rc}">${r}</td></tr>`;
+    }).join('');
+  }
+}
+
+// ─── 商户图表 ─────────────────────────────
+let merchChart = null, rateChartInst = null;
+
+function renderMerchantChart() {
+  const data = getRangeFiltered(D.merchant, 'merchStartWeek', 'merchEndWeek');
+  const personVal = document.getElementById('merchPersonFilter').value;
+  let filtered = personVal !== 'all' ? data.filter(d => d.person === personVal) : data;
+  const weeks = getWeeks(filtered);
+  const weekData = weeks.map(w => {
+    const wd = filtered.filter(d => d.week === w);
+    return {
+      week: w,
+      approve: wd.reduce((s, d) => s + (d.merchApprove || 0), 0),
+      reject: wd.reduce((s, d) => s + (d.merchReject || 0), 0),
+    };
+  });
+
+  const ctx = document.getElementById('merchantChart').getContext('2d');
+  if (merchChart) merchChart.destroy();
+  merchChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: weekData.map(d => displayWeekWithRange(d.week)),
+      datasets: [
+        { label: '准入通过', data: weekData.map(d => d.approve), backgroundColor: 'rgba(0,255,136,0.6)', borderColor: '#00ff88', borderWidth: 1, borderRadius: 6 },
+        { label: '准入驳回', data: weekData.map(d => d.reject), backgroundColor: 'rgba(255,51,85,0.6)', borderColor: '#ff3355', borderWidth: 1, borderRadius: 6 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#e0f0ff', font: { family: 'Rajdhani', size: 13 } } } },
+      scales: {
+        x: { ticks: { color: '#5a7a9a', font: { family: 'Rajdhani' } }, grid: { color: 'rgba(0,240,255,0.06)' } },
+        y: { ticks: { color: '#5a7a9a', font: { family: 'Orbitron', size: 11 } }, grid: { color: 'rgba(0,240,255,0.06)' }, beginAtZero: true },
+      }
+    }
+  });
+}
+
+function renderRateChart() {
+  const data = getRangeFiltered(D.merchant, 'merchStartWeek', 'merchEndWeek');
+  const personVal = document.getElementById('merchPersonFilter').value;
+  let filtered = personVal !== 'all' ? data.filter(d => d.person === personVal) : data;
+  const weeks = getWeeks(filtered);
+  const persons = personVal !== 'all' ? [personVal] : D.persons;
+  const datasets = persons.map((p, i) => {
+    const colors = ['#00ff88', '#00f0ff', '#ffaa00', '#ff00aa', '#4488ff', '#aa44ff'];
+    const c = colors[i % colors.length];
+    return {
+      label: p,
+      data: weeks.map(w => {
+        const pd = filtered.find(d => d.week === w && d.person === p);
+        if (!pd) return null;
+        const total = (pd.merchApprove || 0) + (pd.merchReject || 0);
+        return total === 0 ? null : Math.round((pd.merchApprove || 0) / total * 100);
+      }),
+      borderColor: c, backgroundColor: c + '20', tension: 0.3, pointRadius: 5, pointHoverRadius: 8,
+      pointBackgroundColor: c, borderWidth: 2, fill: false, spanGaps: true,
+    };
+  });
+
+  const ctx = document.getElementById('rateChart').getContext('2d');
+  if (rateChartInst) rateChartInst.destroy();
+  rateChartInst = new Chart(ctx, {
+    type: 'line',
+    data: { labels: weeks.map(w => displayWeekWithRange(w)), datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#e0f0ff', font: { family: 'Rajdhani', size: 13 } } } },
+      scales: {
+        x: { ticks: { color: '#5a7a9a', font: { family: 'Rajdhani' } }, grid: { color: 'rgba(0,240,255,0.06)' } },
+        y: { min: 0, max: 100, ticks: { color: '#5a7a9a', font: { family: 'Orbitron', size: 11 }, callback: v => v + '%' }, grid: { color: 'rgba(0,240,255,0.06)' } },
+      }
+    }
+  });
+}
+
+function renderMerchantTable() {
+  const data = getRangeFiltered(D.merchant, 'merchStartWeek', 'merchEndWeek');
+  const personVal = document.getElementById('merchPersonFilter').value;
+  let filtered = personVal !== 'all' ? data.filter(d => d.person === personVal) : data;
+  const sorted = [...filtered].sort((a, b) => a.week > b.week ? -1 : a.week < b.week ? 1 : (a.person || '').localeCompare(b.person || ''));
+  
+  const MAX_VISIBLE = 20;
+  const visibleRows = sorted.slice(0, MAX_VISIBLE);
+  const hasMore = sorted.length > MAX_VISIBLE;
+  
+  const tbody = document.getElementById('merchantTableBody');
+  tbody.innerHTML = visibleRows.map(d => {
+    const total = (d.merchApprove || 0) + (d.merchReject || 0);
+    const rate = total === 0 ? '--' : Math.round((d.merchApprove || 0) / total * 100) + '%';
+    const rc = rate === '--' ? '' : rateClass(parseInt(rate));
+    return `<tr><td>${displayWeekWithRange(d.week)}</td><td class="person-val">${d.person || '--'}</td><td class="approve-val">${d.merchApprove || 0}</td><td class="reject-val">${d.merchReject || 0}</td><td class="rate-val ${rc}">${rate}</td></tr>`;
+  }).join('');
+  
+  // 添加"加载更多"按钮
+  const tableContainer = document.getElementById('viewTable');
+  const existingFooter = tableContainer.querySelector('.table-footer');
+  if (existingFooter) existingFooter.remove();
+  
+  if (hasMore) {
+    const footer = document.createElement('div');
+    footer.className = 'table-footer';
+    footer.textContent = `▼ 还有 ${sorted.length - MAX_VISIBLE} 条数据，点击展开`;
+    footer.addEventListener('click', () => {
+      tbody.innerHTML = sorted.map(d => {
+        const total = (d.merchApprove || 0) + (d.merchReject || 0);
+        const rate = total === 0 ? '--' : Math.round((d.merchApprove || 0) / total * 100) + '%';
+        const rc = rate === '--' ? '' : rateClass(parseInt(rate));
+        return `<tr><td>${displayWeekWithRange(d.week)}</td><td class="person-val">${d.person || '--'}</td><td class="approve-val">${d.merchApprove || 0}</td><td class="reject-val">${d.merchReject || 0}</td><td class="rate-val ${rc}">${rate}</td></tr>`;
+      }).join('');
+      footer.remove();
+    });
+    tableContainer.appendChild(footer);
+  }
+}
+
+// ─── 筛选事件绑定 ─────────────────────────────
+['merchStartWeek', 'merchEndWeek', 'merchPersonFilter'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    renderMerchantSummary();
+    renderMerchantChart();
+    renderRateChart();
+    renderMerchantTable();
+  });
+});
+
+// ─── 二级户汇总统计 ─────────────────────────────
+function getCheckedAuditTypes() {
+  return Array.from(document.querySelectorAll('#auditTypeCheckboxes input:checked')).map(cb => cb.value);
+}
+
+function renderAuditSummary() {
+  const data = getRangeFiltered(D.audit, 'auditStartWeek', 'auditEndWeek');
+  const types = getCheckedAuditTypes();
+  const allTypes = ['sysApprove', 'sysReject', 'manApprove', 'manReject'];
+  const typeLabels = { sysApprove: '系统通过', sysReject: '系统驳回', manApprove: '人工通过', manReject: '人工驳回' };
+  const typeColors = { sysApprove: 's-val-cyan', sysReject: 's-val-red', manApprove: 's-val-green', manReject: 's-val-amber' };
+
+  const grid = document.getElementById('auditSummaryGrid');
+  if (types.length === 0) {
+    grid.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:20px;grid-column:1/-1;">请至少选择一个审核类型</div>';
+    return;
+  }
+
+  let html = '';
+  types.forEach(type => {
+    const total = data.reduce((s, d) => s + (d[type] || 0), 0);
+    html += `<div class="summary-item"><div class="s-label">${typeLabels[type]}</div><div class="s-value ${typeColors[type]}">${total}</div></div>`;
+  });
+
+  // 计算通过率（通过 / 总）
+  const totalApprove = types.includes('sysApprove') ? data.reduce((s, d) => s + (d.sysApprove || 0), 0) : 0;
+  const totalApprove2 = types.includes('manApprove') ? data.reduce((s, d) => s + (d.manApprove || 0), 0) : 0;
+  const totalReject = types.includes('sysReject') ? data.reduce((s, d) => s + (d.sysReject || 0), 0) : 0;
+  const totalReject2 = types.includes('manReject') ? data.reduce((s, d) => s + (d.manReject || 0), 0) : 0;
+  const allTotal = totalApprove + totalApprove2 + totalReject + totalReject2;
+  const passRate = allTotal === 0 ? '--' : Math.round((totalApprove + totalApprove2) / allTotal * 100) + '%';
+  const rc = passRate === '--' ? '' : rateClass(parseInt(passRate));
+  html += `<div class="summary-item"><div class="s-label">综合通过率</div><div class="s-value ${rc}">${passRate}</div></div>`;
+
+  grid.innerHTML = html;
+}
+
+// ─── 二级户图表 ─────────────────────────────
+let auditChartInst = null;
+
+function renderAuditChart() {
+  const data = getRangeFiltered(D.audit, 'auditStartWeek', 'auditEndWeek');
+  const types = getCheckedAuditTypes();
+  const weeks = getWeeks(data);
+  const typeConfig = {
+    sysApprove: { label: '系统通过', color: 'rgba(0,240,255,0.6)', border: '#00f0ff' },
+    sysReject: { label: '系统驳回', color: 'rgba(255,51,85,0.5)', border: '#ff3355' },
+    manApprove: { label: '人工通过', color: 'rgba(0,255,136,0.5)', border: '#00ff88' },
+    manReject: { label: '人工驳回', color: 'rgba(255,170,0,0.5)', border: '#ffaa00' },
+  };
+
+  const datasets = types.map(t => ({
+    label: typeConfig[t].label,
+    data: weeks.map(w => data.filter(d => d.week === w).reduce((s, d) => s + (d[t] || 0), 0)),
+    backgroundColor: typeConfig[t].color,
+    borderColor: typeConfig[t].border,
+    borderWidth: 1, borderRadius: 4,
+  }));
+
+  const ctx = document.getElementById('auditChart').getContext('2d');
+  if (auditChartInst) auditChartInst.destroy();
+  auditChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: weeks.map(w => displayAuditWeekWithRange(w)), datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#e0f0ff', font: { family: 'Rajdhani', size: 13 } } } },
+      scales: {
+        x: { ticks: { color: '#5a7a9a', font: { family: 'Rajdhani' } }, grid: { color: 'rgba(0,240,255,0.06)' } },
+        y: { ticks: { color: '#5a7a9a', font: { family: 'Orbitron', size: 11 } }, grid: { color: 'rgba(0,240,255,0.06)' }, beginAtZero: true },
+      }
+    }
+  });
+}
+
+function renderAuditTable() {
+  const data = getRangeFiltered(D.audit, 'auditStartWeek', 'auditEndWeek');
+  const sorted = [...data].sort((a, b) => a.week > b.week ? -1 : 1);
+  
+  const MAX_VISIBLE = 20;
+  const visibleRows = sorted.slice(0, MAX_VISIBLE);
+  const hasMore = sorted.length > MAX_VISIBLE;
+  
+  const tbody = document.getElementById('auditTableBody');
+  tbody.innerHTML = visibleRows.map(d => {
+    const totalApp = (d.sysApprove || 0) + (d.manApprove || 0);
+    const totalAll = totalApp + (d.sysReject || 0) + (d.manReject || 0);
+    const rate = totalAll === 0 ? '--' : Math.round(totalApp / totalAll * 100) + '%';
+    const rc = rate === '--' ? '' : rateClass(parseInt(rate));
+    return `<tr><td>${displayAuditWeekWithRange(d.week)}</td><td class="approve-val">${d.sysApprove || 0}</td><td class="reject-val">${d.sysReject || 0}</td><td class="approve-val">${d.manApprove || 0}</td><td class="reject-val">${d.manReject || 0}</td><td class="rate-val ${rc}">${rate}</td></tr>`;
+  }).join('');
+  
+  // 添加"加载更多"按钮
+  const auditTableContainer = document.querySelector('#viewTable').parentElement.parentElement;
+  const existingFooter = auditTableContainer.querySelector('.table-footer.audit-footer');
+  if (existingFooter) existingFooter.remove();
+  
+  if (hasMore) {
+    const footer = document.createElement('div');
+    footer.className = 'table-footer audit-footer';
+    footer.textContent = `▼ 还有 ${sorted.length - MAX_VISIBLE} 条数据，点击展开`;
+    footer.addEventListener('click', () => {
+      tbody.innerHTML = sorted.map(d => {
+        const totalApp = (d.sysApprove || 0) + (d.manApprove || 0);
+        const totalAll = totalApp + (d.sysReject || 0) + (d.manReject || 0);
+        const rate = totalAll === 0 ? '--' : Math.round(totalApp / totalAll * 100) + '%';
+        const rc = rate === '--' ? '' : rateClass(parseInt(rate));
+        return `<tr><td>${displayAuditWeekWithRange(d.week)}</td><td class="approve-val">${d.sysApprove || 0}</td><td class="reject-val">${d.sysReject || 0}</td><td class="approve-val">${d.manApprove || 0}</td><td class="reject-val">${d.manReject || 0}</td><td class="rate-val ${rc}">${rate}</td></tr>`;
+      }).join('');
+      footer.remove();
+    });
+    auditTableContainer.appendChild(footer);
+  }
+}
+
+['auditStartWeek', 'auditEndWeek'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    renderAuditSummary();
+    renderAuditChart();
+    renderAuditTable();
+  });
+});
+document.querySelectorAll('#auditTypeCheckboxes input').forEach(cb => {
+  cb.addEventListener('change', () => { renderAuditSummary(); renderAuditChart(); });
+});
+
+// ─── 粒子效果 ─────────────────────────────
+(function initParticles() {
+  const container = document.getElementById('dataStream');
+  const chars = '01アイウエオカキクケコ'.split('');
+  for (let i = 0; i < 20; i++) {
+    const span = document.createElement('span');
+    span.className = 'data-particle';
+    span.textContent = chars[Math.floor(Math.random() * chars.length)];
+    span.style.left = Math.random() * 100 + '%';
+    span.style.animationDuration = (8 + Math.random() * 12) + 's';
+    span.style.animationDelay = Math.random() * 10 + 's';
+    container.appendChild(span);
+  }
+})();
+
+loadData();
+</script>
+</body>
+</html>
