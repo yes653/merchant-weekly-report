@@ -6,9 +6,10 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>商户准入周报看板 v3.0-FIX</title>
+<title>商户准入周报看板 v3.2-SYNC</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<script src="data.js"></script>
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -530,22 +531,31 @@ function rateClass(rate) {
 async function loadData() {
   document.getElementById('errorBanner').classList.add('hidden');
   try {
-    // 从本地 data.js 读取数据
-    if (typeof REPORT_DATA === 'undefined') {
-      throw new Error('REPORT_DATA not found');
-    }
+    // 从 Supabase 云数据库读取数据
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
-    D.merchant = (REPORT_DATA.merchant || []).map(d => ({
-      id: d.id || null, week: d.week, person: d.person,
-      merchApprove: d.merchApprove, merchReject: d.merchReject,
+    const [merchResp, auditResp] = await Promise.all([
+      sb.from('merchant_weekly').select('*').order('week', { ascending: false }),
+      sb.from('audit_weekly').select('*').order('week', { ascending: false }),
+    ]);
+    
+    if (merchResp.error) throw new Error('商户数据加载失败: ' + merchResp.error.message);
+    if (auditResp.error) throw new Error('二级户数据加载失败: ' + auditResp.error.message);
+    
+    D.merchant = (merchResp.data || []).map(d => ({
+      id: d.id || null, week: d.week, person: d.person || '未知',
+      merchApprove: d.merchant_approve ?? d.merchApprove ?? 0,
+      merchReject: d.merchant_reject ?? d.merchReject ?? 0,
     }));
-    D.audit = (REPORT_DATA.audit || []).map(d => ({
+    D.audit = (auditResp.data || []).map(d => ({
       id: d.id || null, week: d.week,
-      sysApprove: d.sysApprove, sysReject: d.sysReject,
-      manApprove: d.manApprove, manReject: d.manReject,
+      sysApprove: d.sys_approve ?? d.sysApprove ?? 0,
+      sysReject: d.sys_reject ?? d.sysReject ?? 0,
+      manApprove: d.manual_approve ?? d.manApprove ?? 0,
+      manReject: d.manual_reject ?? d.manReject ?? 0,
     }));
     D.persons = [...new Set(D.merchant.map(d => d.person))].filter(Boolean);
-    D.lastUpdated = REPORT_DATA.lastUpdated || new Date().toLocaleDateString('zh-CN');
+    D.lastUpdated = new Date().toLocaleDateString('zh-CN');
 
     document.getElementById('statusDot').classList.remove('offline');
     document.getElementById('updateTime').textContent = `数据更新于 ${D.lastUpdated}`;
@@ -570,6 +580,7 @@ async function loadData() {
     document.getElementById('statusDot').classList.add('offline');
     document.getElementById('updateTime').textContent = '连接失败';
     document.getElementById('errorBanner').classList.remove('hidden');
+    document.getElementById('errorBanner').innerHTML = `<strong>⚠️ 数据同步失败</strong><br>无法连接云端数据库：${err.message}<br>请检查网络或联系管理员。`;
     const overlay = document.getElementById('loadingOverlay');
     overlay.classList.add('fade-out');
     setTimeout(() => overlay.style.display = 'none', 500);
