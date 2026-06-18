@@ -544,15 +544,15 @@ async function loadData() {
     
     D.merchant = (merchResp.data || []).map(d => ({
       id: d.id || null, week: d.week, person: d.person || '未知',
-      merchApprove: d.merchant_approve ?? d.merchApprove ?? 0,
-      merchReject: d.merchant_reject ?? d.merchReject ?? 0,
+      merchApprove: d.merch_approve ?? d.merchApprove ?? 0,
+      merchReject: d.merch_reject ?? d.merchReject ?? 0,
     }));
     D.audit = (auditResp.data || []).map(d => ({
       id: d.id || null, week: d.week,
       sysApprove: d.sys_approve ?? d.sysApprove ?? 0,
       sysReject: d.sys_reject ?? d.sysReject ?? 0,
-      manApprove: d.manual_approve ?? d.manApprove ?? 0,
-      manReject: d.manual_reject ?? d.manReject ?? 0,
+      manApprove: d.man_approve ?? d.manApprove ?? 0,
+      manReject: d.man_reject ?? d.manReject ?? 0,
     }));
     D.persons = [...new Set(D.merchant.map(d => d.person))].filter(Boolean);
     D.lastUpdated = new Date().toLocaleDateString('zh-CN');
