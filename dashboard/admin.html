@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>商户准入周报 · 数据管理</title>
+<title>商户准入周报 · 数据管理 v3.1</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -649,8 +649,13 @@ document.addEventListener('click', async (e) => {
 
 function formatDisplayWeek(w) {
   if (!w) return '--';
-  const m = w.match(/(\d{4})-W(\d{2})/);
-  return m ? `${m[1]}年第${parseInt(m[2])}周` : w;
+  // 兼容 "2026-W25" 或 "2026-W5" 等格式
+  const m = w.toString().match(/(\d{4})-W(\d{1,2})/i);
+  if (m) {
+    const weekNum = parseInt(m[2]);
+    return `${m[1]}年第${weekNum}周`;
+  }
+  return w; // 如果匹配失败，直接返回原始值以便排查
 }
 
 // ─── 初始化 ─────────────────────────────
