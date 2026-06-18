@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>商户准入周报 · 数据管理</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+<style>
+  :root {
+    --bg: #060b14;
+    --card: rgba(10, 20, 35, 0.8);
+    --card-solid: #0a1423;
+    --border: rgba(0, 240, 255, 0.12);
+    --border-bright: rgba(0, 240, 255, 0.3);
+    --neon-cyan: #00f0ff;
+    --neon-magenta: #ff00aa;
+    --neon-green: #00ff88;
+    --neon-amber: #ffaa00;
+    --neon-red: #ff3355;
+    --neon-blue: #4488ff;
+    --accent: var(--neon-cyan);
+    --text: #e0f0ff;
+    --text-dim: #5a7a9a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Rajdhani', -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh; padding: 24px;
+    position: relative; overflow-x: hidden;
+  }
+  .deep-bg {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: -4; pointer-events: none;
+    background:
+      radial-gradient(ellipse 120% 80% at 50% 0%, rgba(0,240,255,0.04) 0%, transparent 50%),
+      radial-gradient(ellipse 80% 60% at 80% 100%, rgba(255,0,170,0.03) 0%, transparent 50%),
+      linear-gradient(180deg, #040810 0%, #060b14 30%, #081020 70%, #060b14 100%);
+  }
+  .matrix-bg {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: -3;
+    pointer-events: none; opacity: 0.04;
+    background-image:
+      linear-gradient(rgba(0,240,255,0.3) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,240,255,0.3) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+  .header { text-align: center; margin-bottom: 24px; }
+  .header h1 {
+    font-family: 'Orbitron', monospace; font-size: 22px; font-weight: 800; letter-spacing: 3px;
+    color: var(--neon-amber); text-shadow: 0 0 10px rgba(255,170,0,0.5);
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .header .sub {
+    font-family: 'Rajdhani', sans-serif; color: var(--text-dim); font-size: 13px;
+    margin-top: 4px; letter-spacing: 1px;
+  }
+  .lock-screen {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--bg); z-index: 9999;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+  }
+  .lock-screen.hidden { display: none; }
+  .lock-screen h2 {
+    font-family: 'Orbitron', monospace; font-size: 18px; color: var(--neon-amber);
+    letter-spacing: 3px; text-shadow: 0 0 10px rgba(255,170,0,0.3);
+  }
+  .lock-input {
+    padding: 12px 20px; background: rgba(8,18,32,0.9); border: 1px solid var(--border-bright);
+    border-radius: 10px; color: var(--text); font-family: 'Rajdhani', sans-serif;
+    font-size: 18px; text-align: center; outline: none; width: 240px; letter-spacing: 4px;
+  }
+  .lock-input:focus { border-color: var(--neon-amber); box-shadow: 0 0 15px rgba(255,170,0,0.2); }
+  .lock-btn {
+    padding: 10px 32px; background: linear-gradient(135deg, rgba(255,170,0,0.3), rgba(255,170,0,0.1));
+    border: 1px solid rgba(255,170,0,0.4); border-radius: 10px; color: var(--neon-amber);
+    font-family: 'Orbitron', monospace; font-size: 14px; cursor: pointer; letter-spacing: 2px;
+    transition: all 0.3s;
+  }
+  .lock-btn:hover { background: linear-gradient(135deg, rgba(255,170,0,0.5), rgba(255,170,0,0.2)); box-shadow: 0 0 20px rgba(255,170,0,0.3); }
+  .lock-error { color: var(--neon-red); font-size: 13px; min-height: 18px; }
+  .main-tabs {
+    display: flex; gap: 4px; margin-bottom: 24px;
+    background: var(--card); border-radius: 10px; padding: 4px;
+    border: 1px solid var(--border); backdrop-filter: blur(10px);
+  }
+  .main-tab {
+    flex: 1; padding: 12px; text-align: center; border-radius: 8px;
+    background: transparent; border: none; color: var(--text-dim);
+    font-family: 'Orbitron', monospace; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.3s; letter-spacing: 1px;
+  }
+  .main-tab.active {
+    background: linear-gradient(135deg, rgba(255,170,0,0.2), rgba(255,170,0,0.05));
+    color: var(--neon-amber); box-shadow: 0 0 15px rgba(255,170,0,0.15);
+    border: 1px solid rgba(255,170,0,0.3);
+  }
+  .main-tab:not(.active):hover { color: var(--text); background: rgba(255,170,0,0.05); }
+  .tab-section { display: none; }
+  .tab-section.visible { display: block; }
+  .form-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 24px; margin-bottom: 24px; backdrop-filter: blur(12px);
+  }
+  .form-card h3 {
+    font-family: 'Orbitron', monospace; font-size: 14px; font-weight: 700;
+    color: var(--neon-cyan); margin-bottom: 18px; letter-spacing: 2px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .form-card h3::before {
+    content: ''; width: 4px; height: 18px; background: var(--neon-cyan); border-radius: 2px;
+  }
+  .form-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px; margin-bottom: 20px;
+  }
+  .form-field { display: flex; flex-direction: column; gap: 6px; }
+  .form-field label {
+    font-size: 12px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase;
+    font-family: 'Orbitron', monospace;
+  }
+  .form-field input {
+    padding: 10px 14px; background: rgba(8,18,32,0.9); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-family: 'Rajdhani', sans-serif;
+    font-size: 15px; font-weight: 500; outline: none; transition: border-color 0.3s;
+    cursor: pointer;
+  }
+  .form-field input:focus {
+    border-color: var(--neon-cyan); box-shadow: 0 0 10px rgba(0,240,255,0.15);
+  }
+  .form-field input[type="number"] { font-family: 'Orbitron', monospace; font-size: 16px; }
+  .form-field input.locked {
+    background: rgba(0,240,255,0.08); border-color: rgba(0,240,255,0.25);
+    cursor: default; color: var(--neon-cyan); font-weight: 700;
+  }
+
+  /* flatpickr 自定义主题 */
+  .flatpickr-calendar {
+    background: rgba(10, 20, 35, 0.95) !important;
+    border: 1px solid var(--border-bright) !important;
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.2) !important;
+    backdrop-filter: blur(12px);
+    border-radius: 10px !important;
+  }
+  .flatpickr-calendar.dark { box-shadow: none !important; }
+  .flatpickr-months .flatpickr-month {
+    background: rgba(0, 240, 255, 0.06) !important;
+    color: var(--neon-cyan) !important;
+    fill: var(--neon-cyan) !important;
+  }
+  .flatpickr-months .flatpickr-prev-month:hover svg,
+  .flatpickr-months .flatpickr-next-month:hover svg { fill: var(--neon-cyan) !important; }
+  .flatpickr-months .flatpickr-prev-month svg,
+  .flatpickr-months .flatpickr-next-month svg { fill: var(--text-dim) !important; }
+  .flatpickr-current-month .flatpickr-monthDropdown-months,
+  .flatpickr-current-month input.cur-year { color: var(--neon-cyan) !important; }
+  span.flatpickr-weekday { color: var(--text-dim) !important; }
+  .flatpickr-day { color: var(--text) !important; border-radius: 6px !important; }
+  .flatpickr-day:hover { background: rgba(0, 240, 255, 0.15) !important; border-color: rgba(0, 240, 255, 0.3) !important; }
+  .flatpickr-day.selected {
+    background: var(--neon-cyan) !important;
+    border-color: var(--neon-cyan) !important;
+    color: #000 !important;
+    font-weight: 700 !important;
+  }
+  .flatpickr-day.today { border-color: var(--neon-amber) !important; color: var(--neon-amber) !important; }
+  .flatpickr-day.inRange { background: rgba(0, 240, 255, 0.1) !important; border-color: transparent !important; }
+  .flatpickr-day.startRange, .flatpickr-day.endRange { background: var(--neon-cyan) !important; color: #000 !important; }
+  .flatpickr-time { border-top: 1px solid var(--border) !important; }
+  .flatpickr-time input { color: var(--text) !important; }
+  .flatpickr-current-month { font-size: 14px !important; }
+
+  .submit-btn {
+    padding: 12px 32px;
+    background: linear-gradient(135deg, rgba(0,240,255,0.3), rgba(0,240,255,0.1));
+    border: 1px solid rgba(0,240,255,0.4); border-radius: 10px;
+    color: var(--neon-cyan); font-family: 'Orbitron', monospace;
+    font-size: 13px; font-weight: 600; cursor: pointer; letter-spacing: 2px;
+    transition: all 0.3s;
+  }
+  .submit-btn:hover {
+    background: linear-gradient(135deg, rgba(0,240,255,0.5), rgba(0,240,255,0.2));
+    box-shadow: 0 0 20px rgba(0,240,255,0.3);
+  }
+  .submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .data-list {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    overflow: hidden; backdrop-filter: blur(12px);
+  }
+  .data-list-header {
+    display: grid; padding: 14px 16px;
+    background: rgba(0,240,255,0.06);
+    border-bottom: 1px solid var(--border);
+    font-family: 'Orbitron', monospace; font-size: 11px; font-weight: 600;
+    color: var(--neon-cyan); letter-spacing: 1px; text-transform: uppercase;
+  }
+  .data-list-item {
+    display: grid; padding: 14px 16px;
+    border-bottom: 1px solid rgba(0,240,255,0.05);
+    font-size: 14px; font-weight: 500; align-items: center;
+    transition: background 0.2s;
+  }
+  .data-list-item:hover { background: rgba(0,240,255,0.04); }
+  .data-list-item:last-child { border-bottom: none; }
+  .data-list-header.merchant, .data-list-item.merchant { grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto; gap: 12px; }
+  .data-list-header.audit, .data-list-item.audit { grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr auto; gap: 12px; }
+  .val-green { color: var(--neon-green); font-family: 'Orbitron', monospace; font-weight: 600; }
+  .val-red { color: var(--neon-red); font-family: 'Orbitron', monospace; font-weight: 600; }
+  .val-cyan { color: var(--neon-cyan); }
+  .action-btns { display: flex; gap: 6px; }
+  .btn-sm {
+    padding: 4px 10px; border-radius: 6px; border: 1px solid;
+    font-size: 11px; font-family: 'Rajdhani', sans-serif; font-weight: 600;
+    cursor: pointer; transition: all 0.2s; background: transparent;
+  }
+  .btn-edit { border-color: rgba(0,240,255,0.3); color: var(--neon-cyan); }
+  .btn-edit:hover { background: rgba(0,240,255,0.15); }
+  .btn-del { border-color: rgba(255,51,85,0.3); color: var(--neon-red); }
+  .btn-del:hover { background: rgba(255,51,85,0.15); }
+  .toast {
+    position: fixed; top: 20px; right: 20px; padding: 14px 24px;
+    border-radius: 10px; font-family: 'Rajdhani', sans-serif; font-size: 14px; font-weight: 600;
+    z-index: 99999; transform: translateX(120%); transition: transform 0.3s;
+    backdrop-filter: blur(10px);
+  }
+  .toast.show { transform: translateX(0); }
+  .toast.success { background: rgba(0,255,136,0.15); border: 1px solid rgba(0,255,136,0.3); color: var(--neon-green); }
+  .toast.error { background: rgba(255,51,85,0.15); border: 1px solid rgba(255,51,85,0.3); color: var(--neon-red); }
+  .empty-state {
+    text-align: center; padding: 40px 20px; color: var(--text-dim);
+    font-family: 'Rajdhani', sans-serif; font-size: 15px;
+  }
+  .back-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--text-dim); text-decoration: none; font-size: 13px;
+    margin-bottom: 16px; transition: color 0.2s;
+  }
+  .back-link:hover { color: var(--neon-cyan); }
+  @media (max-width: 768px) {
+    body { padding: 12px; }
+    .form-grid { grid-template-columns: 1fr; }
+    .data-list-header.merchant, .data-list-item.merchant,
+    .data-list-header.audit, .data-list-item.audit { grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; }
+    .header h1 { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="deep-bg"></div>
+<div class="matrix-bg"></div>
+
+<!-- 密码锁屏 -->
+<div class="lock-screen" id="lockScreen">
+  <h2>AUTH REQUIRED</h2>
+  <input type="password" class="lock-input" id="lockPassword" placeholder="输入管理密码" autocomplete="off">
+  <button class="lock-btn" id="lockBtn">VERIFY</button>
+  <div class="lock-error" id="lockError"></div>
+</div>
+
+<!-- 主内容 -->
+<a href="index.html" class="back-link">← 返回展示面板</a>
+
+<div class="header">
+  <h1>DATA ADMIN</h1>
+  <div class="sub">商户准入周报 · 数据管理 · LOOP ADMIN v2.0</div>
+</div>
+
+<!-- Tab 切换 -->
+<div class="main-tabs">
+  <button class="main-tab active" data-tab="merchant">商户准入</button>
+  <button class="main-tab" data-tab="audit">二级户审核</button>
+</div>
+
+<!-- 商户准入 Tab -->
+<div class="tab-section visible" id="tabMerchant">
+  <div class="form-card">
+    <h3 id="merchFormTitle">新增商户准入数据</h3>
+    <div class="form-grid">
+      <div class="form-field">
+        <label>选择周次</label>
+        <input type="text" id="merchWeek" placeholder="点选日期选择周次" readonly>
+      </div>
+      <div class="form-field">
+        <label>填写人</label>
+        <input type="text" id="merchPerson" placeholder="姓名">
+        <input type="hidden" id="merchPersonLocked" value="">
+      </div>
+      <div class="form-field">
+        <label>准入通过</label>
+        <input type="number" id="merchApprove" min="0" value="0">
+      </div>
+      <div class="form-field">
+        <label>准入驳回</label>
+        <input type="number" id="merchReject" min="0" value="0">
+      </div>
+    </div>
+    <button class="submit-btn" id="merchSubmit">SUBMIT</button>
+    <button class="submit-btn" id="merchCancel" style="display:none;margin-left:8px;background:linear-gradient(135deg,rgba(255,51,85,0.3),rgba(255,51,85,0.1));border-color:rgba(255,51,85,0.4);color:var(--neon-red);">CANCEL</button>
+  </div>
+
+  <div class="data-list" id="merchList">
+    <div class="data-list-header merchant">
+      <span>周次</span><span>填写人</span><span>通过</span><span>驳回</span><span>通过率</span><span>操作</span>
+    </div>
+    <div id="merchListBody">
+      <div class="empty-state">加载中...</div>
+    </div>
+  </div>
+</div>
+
+<!-- 二级户审核 Tab -->
+<div class="tab-section" id="tabAudit">
+  <div class="form-card">
+    <h3 id="auditFormTitle">新增二级户审核数据</h3>
+    <div class="form-grid">
+      <div class="form-field">
+        <label>选择周次</label>
+        <input type="text" id="auditWeek" placeholder="点选日期选择周次" readonly>
+      </div>
+      <div class="form-field">
+        <label>系统审核通过</label>
+        <input type="number" id="sysApprove" min="0" value="0">
+      </div>
+      <div class="form-field">
+        <label>系统审核驳回</label>
+        <input type="number" id="sysReject" min="0" value="0">
+      </div>
+      <div class="form-field">
+        <label>人工审核通过</label>
+        <input type="number" id="manApprove" min="0" value="0">
+      </div>
+      <div class="form-field">
+        <label>人工审核驳回</label>
+        <input type="number" id="manReject" min="0" value="0">
+      </div>
+    </div>
+    <button class="submit-btn" id="auditSubmit">SUBMIT</button>
+    <button class="submit-btn" id="auditCancel" style="display:none;margin-left:8px;background:linear-gradient(135deg,rgba(255,51,85,0.3),rgba(255,51,85,0.1));border-color:rgba(255,51,85,0.4);color:var(--neon-red);">CANCEL</button>
+  </div>
+
+  <div class="data-list" id="auditList">
+    <div class="data-list-header audit">
+      <span>周次</span><span>系统通过</span><span>系统驳回</span><span>人工通过</span><span>人工驳回</span><span>通过率</span><span>操作</span>
+    </div>
+    <div id="auditListBody">
+      <div class="empty-state">加载中...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
+<script>
+// ─── Supabase 初始化 ─────────────────────────────
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ─── 密码验证 ─────────────────────────────
+const ADMIN_PASSWORD = 'loop2026';
+const PASSWORD_KEY = 'admin_auth';
+
+function checkAuth() {
+  const auth = sessionStorage.getItem(PASSWORD_KEY);
+  if (auth === 'ok') {
+    document.getElementById('lockScreen').classList.add('hidden');
+    initApp();
+  }
+}
+
+document.getElementById('lockBtn').addEventListener('click', tryUnlock);
+document.getElementById('lockPassword').addEventListener('keydown', e => {
+  if (e.key === 'Enter') tryUnlock();
+});
+
+function tryUnlock() {
+  const pwd = document.getElementById('lockPassword').value;
+  if (pwd === ADMIN_PASSWORD) {
+    sessionStorage.setItem(PASSWORD_KEY, 'ok');
+    document.getElementById('lockScreen').classList.add('hidden');
+    initApp();
+  } else {
+    document.getElementById('lockError').textContent = '密码错误，请重试';
+    document.getElementById('lockPassword').value = '';
+    document.getElementById('lockPassword').focus();
+  }
+}
+
+// ─── Toast ─────────────────────────────
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ─── 周次计算 ─────────────────────────────
+function getWeekFromDate(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = d.getUTCDay() || 7;
+  const thursday = new Date(d);
+  thursday.setUTCDate(d.getUTCDate() - day + 4);
+  const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
+  const weekNum = Math.ceil(((thursday - yearStart) / 86400000 + yearStart.getUTCDay() + 1) / 7);
+  return {
+    value: `${thursday.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`,
+    display: `${thursday.getUTCFullYear()}年第${weekNum}周`
+  };
+}
+
+function getCurrentWeek() {
+  return getWeekFromDate(new Date()).value;
+}
+
+// ─── Tab 切换 ─────────────────────────────
+document.querySelectorAll('.main-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('visible'));
+    tab.classList.add('active');
+    document.getElementById('tab' + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1)).classList.add('visible');
+  });
+});
+
+// ─── 商户准入 ─────────────────────────────
+let editingMerchId = null;
+
+async function loadMerchList() {
+  const { data, error } = await db.from('merchant_weekly').select('*').order('week', { ascending: false });
+  if (error) { showToast('加载失败: ' + error.message, 'error'); return; }
+
+  const body = document.getElementById('merchListBody');
+  if (!data || data.length === 0) {
+    body.innerHTML = '<div class="empty-state">暂无数据，请录入</div>';
+    return;
+  }
+
+  body.innerHTML = data.map(d => {
+    const total = (d.merch_approve || 0) + (d.merch_reject || 0);
+    const rate = total === 0 ? '--' : Math.round((d.merch_approve || 0) / total * 100) + '%';
+    return `<div class="data-list-item merchant" data-id="${d.id}">
+      <span class="val-cyan">${formatDisplayWeek(d.week)}</span>
+      <span>${d.person || '--'}</span>
+      <span class="val-green">${d.merch_approve || 0}</span>
+      <span class="val-red">${d.merch_reject || 0}</span>
+      <span>${rate}</span>
+      <div class="action-btns">
+        <button class="btn-sm btn-edit" data-action="edit-merch" data-id="${d.id}">编辑</button>
+        <button class="btn-sm btn-del" data-action="del-merch" data-id="${d.id}">删除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('merchSubmit').addEventListener('click', async () => {
+  const week = document.getElementById('merchWeek').dataset.value;
+  const person = document.getElementById('merchPerson').value.trim();
+  const merch_approve = parseInt(document.getElementById('merchApprove').value) || 0;
+  const merch_reject = parseInt(document.getElementById('merchReject').value) || 0;
+
+  if (!week || !person) { showToast('请选择周次和填写姓名', 'error'); return; }
+
+  const btn = document.getElementById('merchSubmit');
+  btn.disabled = true;
+
+  try {
+    if (editingMerchId) {
+      const { error } = await db.from('merchant_weekly').update({ week, person, merch_approve, merch_reject }).eq('id', editingMerchId);
+      if (error) throw error;
+      showToast('更新成功');
+      cancelMerchEdit();
+    } else {
+      const { error } = await db.from('merchant_weekly').insert({ week, person, merch_approve, merch_reject });
+      if (error) throw error;
+      showToast('录入成功');
+    }
+    clearMerchForm();
+    await loadMerchList();
+  } catch (err) {
+    showToast('操作失败: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function clearMerchForm() {
+  const wk = getWeekFromDate(new Date());
+  document.getElementById('merchWeek').value = wk.display;
+  document.getElementById('merchWeek').dataset.value = wk.value;
+  // 如果姓名被 URL 锁定，不清空
+  const merchPersonInput = document.getElementById('merchPerson');
+  if (!merchPersonInput.readOnly) {
+    merchPersonInput.value = '';
+  }
+  document.getElementById('merchApprove').value = 0;
+  document.getElementById('merchReject').value = 0;
+}
+
+function cancelMerchEdit() {
+  editingMerchId = null;
+  document.getElementById('merchFormTitle').textContent = '新增商户准入数据';
+  document.getElementById('merchCancel').style.display = 'none';
+  clearMerchForm();
+}
+
+document.getElementById('merchCancel').addEventListener('click', cancelMerchEdit);
+
+// ─── 二级户审核 ─────────────────────────────
+let editingAuditId = null;
+
+async function loadAuditList() {
+  const { data, error } = await db.from('audit_weekly').select('*').order('week', { ascending: false });
+  if (error) { showToast('加载失败: ' + error.message, 'error'); return; }
+
+  const body = document.getElementById('auditListBody');
+  if (!data || data.length === 0) {
+    body.innerHTML = '<div class="empty-state">暂无数据，请录入</div>';
+    return;
+  }
+
+  body.innerHTML = data.map(d => {
+    const totalApp = (d.sys_approve || 0) + (d.man_approve || 0);
+    const totalAll = totalApp + (d.sys_reject || 0) + (d.man_reject || 0);
+    const rate = totalAll === 0 ? '--' : Math.round(totalApp / totalAll * 100) + '%';
+    return `<div class="data-list-item audit" data-id="${d.id}">
+      <span class="val-cyan">${formatDisplayWeek(d.week)}</span>
+      <span class="val-green">${d.sys_approve || 0}</span>
+      <span class="val-red">${d.sys_reject || 0}</span>
+      <span class="val-green">${d.man_approve || 0}</span>
+      <span class="val-red">${d.man_reject || 0}</span>
+      <span>${rate}</span>
+      <div class="action-btns">
+        <button class="btn-sm btn-edit" data-action="edit-audit" data-id="${d.id}">编辑</button>
+        <button class="btn-sm btn-del" data-action="del-audit" data-id="${d.id}">删除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('auditSubmit').addEventListener('click', async () => {
+  const week = document.getElementById('auditWeek').dataset.value;
+  const sys_approve = parseInt(document.getElementById('sysApprove').value) || 0;
+  const sys_reject = parseInt(document.getElementById('sysReject').value) || 0;
+  const man_approve = parseInt(document.getElementById('manApprove').value) || 0;
+  const man_reject = parseInt(document.getElementById('manReject').value) || 0;
+
+  if (!week) { showToast('请选择周次', 'error'); return; }
+
+  const btn = document.getElementById('auditSubmit');
+  btn.disabled = true;
+
+  try {
+    if (editingAuditId) {
+      const { error } = await db.from('audit_weekly').update({ week, sys_approve, sys_reject, man_approve, man_reject }).eq('id', editingAuditId);
+      if (error) throw error;
+      showToast('更新成功');
+      cancelAuditEdit();
+    } else {
+      const { error } = await db.from('audit_weekly').insert({ week, sys_approve, sys_reject, man_approve, man_reject });
+      if (error) throw error;
+      showToast('录入成功');
+    }
+    clearAuditForm();
+    await loadAuditList();
+  } catch (err) {
+    showToast('操作失败: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function clearAuditForm() {
+  const currentWeek = getWeekFromDate(new Date());
+  document.getElementById('auditWeek').value = currentWeek.display;
+  document.getElementById('auditWeek').dataset.value = currentWeek.value;
+  document.getElementById('sysApprove').value = 0;
+  document.getElementById('sysReject').value = 0;
+  document.getElementById('manApprove').value = 0;
+  document.getElementById('manReject').value = 0;
+}
+
+function cancelAuditEdit() {
+  editingAuditId = null;
+  document.getElementById('auditFormTitle').textContent = '新增二级户审核数据';
+  document.getElementById('auditCancel').style.display = 'none';
+  clearAuditForm();
+}
+
+document.getElementById('auditCancel').addEventListener('click', cancelAuditEdit);
+
+// ─── 事件委托：编辑/删除 ─────────────────────────────
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+
+  const action = btn.dataset.action;
+  const id = parseInt(btn.dataset.id);
+
+  if (action === 'edit-merch') {
+    const { data, error } = await db.from('merchant_weekly').select('*').eq('id', id).single();
+    if (error) { showToast('加载失败', 'error'); return; }
+    editingMerchId = id;
+    const wk = getWeekFromDate(new Date(data.week.replace('W', '-1') + 'T00:00:00Z') || new Date());
+    document.getElementById('merchWeek').value = formatDisplayWeek(data.week);
+    document.getElementById('merchWeek').dataset.value = data.week;
+    document.getElementById('merchPerson').value = data.person;
+    document.getElementById('merchApprove').value = data.merch_approve;
+    document.getElementById('merchReject').value = data.merch_reject;
+    document.getElementById('merchFormTitle').textContent = '编辑商户准入数据';
+    document.getElementById('merchCancel').style.display = 'inline-block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  if (action === 'del-merch') {
+    if (!confirm('确定删除这条商户准入数据？')) return;
+    const { error } = await db.from('merchant_weekly').delete().eq('id', id);
+    if (error) { showToast('删除失败', 'error'); return; }
+    showToast('已删除');
+    await loadMerchList();
+  }
+
+  if (action === 'edit-audit') {
+    const { data, error } = await db.from('audit_weekly').select('*').eq('id', id).single();
+    if (error) { showToast('加载失败', 'error'); return; }
+    editingAuditId = id;
+    document.getElementById('auditWeek').value = formatDisplayWeek(data.week);
+    document.getElementById('auditWeek').dataset.value = data.week;
+    document.getElementById('sysApprove').value = data.sys_approve;
+    document.getElementById('sysReject').value = data.sys_reject;
+    document.getElementById('manApprove').value = data.man_approve;
+    document.getElementById('manReject').value = data.man_reject;
+    document.getElementById('auditFormTitle').textContent = '编辑二级户审核数据';
+    document.getElementById('auditCancel').style.display = 'inline-block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  if (action === 'del-audit') {
+    if (!confirm('确定删除这条二级户审核数据？')) return;
+    const { error } = await db.from('audit_weekly').delete().eq('id', id);
+    if (error) { showToast('删除失败', 'error'); return; }
+    showToast('已删除');
+    await loadAuditList();
+  }
+});
+
+function formatDisplayWeek(w) {
+  if (!w) return '--';
+  const m = w.match(/(\d{4})-W(\d{2})/);
+  return m ? `${m[1]}年第${parseInt(m[2])}周` : w;
+}
+
+// ─── 初始化 ─────────────────────────────
+function initApp() {
+  // 处理 URL 参数 ?person=姓名
+  const params = new URLSearchParams(window.location.search);
+  const urlPerson = params.get('person');
+  const merchPersonInput = document.getElementById('merchPerson');
+  
+  if (urlPerson) {
+    merchPersonInput.value = decodeURIComponent(urlPerson);
+    merchPersonInput.readOnly = true;
+    merchPersonInput.classList.add('locked');
+    merchPersonInput.title = '由链接自动锁定，不可修改';
+  }
+
+  // 初始化 flatpickr 周选择器
+  const merchPicker = flatpickr('#merchWeek', {
+    locale: 'zh',
+    dateFormat: 'Y-m-d',
+    defaultDate: new Date(),
+    onChange: function(selectedDates, dateStr, instance) {
+      if (selectedDates.length > 0) {
+        const week = getWeekFromDate(selectedDates[0]);
+        instance.input.value = week.display;
+        instance.input.dataset.value = week.value;
+      }
+    }
+  });
+
+  const auditPicker = flatpickr('#auditWeek', {
+    locale: 'zh',
+    dateFormat: 'Y-m-d',
+    defaultDate: new Date(),
+    onChange: function(selectedDates, dateStr, instance) {
+      if (selectedDates.length > 0) {
+        const week = getWeekFromDate(selectedDates[0]);
+        instance.input.value = week.display;
+        instance.input.dataset.value = week.value;
+      }
+    }
+  });
+
+  // 设置当前周默认值
+  const currentWeek = getWeekFromDate(new Date());
+  document.getElementById('merchWeek').value = currentWeek.display;
+  document.getElementById('merchWeek').dataset.value = currentWeek.value;
+  document.getElementById('auditWeek').value = currentWeek.display;
+  document.getElementById('auditWeek').dataset.value = currentWeek.value;
+
+  loadMerchList();
+  loadAuditList();
+}
+
+checkAuth();
+</script>
+</body>
+</html>
