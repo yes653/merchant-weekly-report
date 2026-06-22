@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>商户准入周报看板 v3.2-SYNC</title>
+<title>商户准入周报看板 v3.3-FOLD</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -747,16 +747,27 @@ function renderMerchantChart() {
     data: {
       labels: weekData.map(d => displayWeekWithRange(d.week)),
       datasets: [
-        { label: '准入通过', data: weekData.map(d => d.approve), backgroundColor: 'rgba(0,255,136,0.6)', borderColor: '#00ff88', borderWidth: 1, borderRadius: 6 },
-        { label: '准入驳回', data: weekData.map(d => d.reject), backgroundColor: 'rgba(255,51,85,0.6)', borderColor: '#ff3355', borderWidth: 1, borderRadius: 6 },
+        { label: '准入通过', data: weekData.map(d => d.approve), backgroundColor: 'rgba(0,255,136,0.7)', borderColor: '#00ff88', borderWidth: 1, borderRadius: 4 },
+        { label: '准入驳回', data: weekData.map(d => d.reject), backgroundColor: 'rgba(255,51,85,0.7)', borderColor: '#ff3355', borderWidth: 1, borderRadius: 4 },
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#e0f0ff', font: { family: 'Rajdhani', size: 13 } } } },
+      plugins: {
+        legend: { labels: { color: '#e0f0ff', font: { family: 'Rajdhani', size: 13 } } },
+        tooltip: {
+          callbacks: {
+            afterBody: function(context) {
+              const idx = context[0].dataIndex;
+              const total = weekData[idx].approve + weekData[idx].reject;
+              return `合计: ${total}`;
+            }
+          }
+        }
+      },
       scales: {
-        x: { ticks: { color: '#5a7a9a', font: { family: 'Rajdhani' } }, grid: { color: 'rgba(0,240,255,0.06)' } },
-        y: { ticks: { color: '#5a7a9a', font: { family: 'Orbitron', size: 11 } }, grid: { color: 'rgba(0,240,255,0.06)' }, beginAtZero: true },
+        x: { stacked: true, ticks: { color: '#5a7a9a', font: { family: 'Rajdhani' } }, grid: { color: 'rgba(0,240,255,0.06)' } },
+        y: { stacked: true, ticks: { color: '#5a7a9a', font: { family: 'Orbitron', size: 11 } }, grid: { color: 'rgba(0,240,255,0.06)' }, beginAtZero: true },
       }
     }
   });
@@ -800,6 +811,9 @@ function renderRateChart() {
   });
 }
 
+// 商户表格展开状态
+let merchantTableExpanded = false;
+
 function renderMerchantTable() {
   const data = getRangeFiltered(D.merchant, 'merchStartWeek', 'merchEndWeek');
   const personVal = document.getElementById('merchPersonFilter').value;
@@ -807,18 +821,20 @@ function renderMerchantTable() {
   const sorted = [...filtered].sort((a, b) => a.week > b.week ? -1 : a.week < b.week ? 1 : (a.person || '').localeCompare(b.person || ''));
   
   const MAX_VISIBLE = 20;
-  const visibleRows = sorted.slice(0, MAX_VISIBLE);
   const hasMore = sorted.length > MAX_VISIBLE;
   
+  // 如果未展开且数据超过限制，只显示前20条
+  const rowsToShow = (!merchantTableExpanded && hasMore) ? sorted.slice(0, MAX_VISIBLE) : sorted;
+  
   const tbody = document.getElementById('merchantTableBody');
-  tbody.innerHTML = visibleRows.map(d => {
+  tbody.innerHTML = rowsToShow.map(d => {
     const total = (d.merchApprove || 0) + (d.merchReject || 0);
     const rate = total === 0 ? '--' : Math.round((d.merchApprove || 0) / total * 100) + '%';
     const rc = rate === '--' ? '' : rateClass(parseInt(rate));
     return `<tr><td>${displayWeekWithRange(d.week)}</td><td class="person-val">${d.person || '--'}</td><td class="approve-val">${d.merchApprove || 0}</td><td class="reject-val">${d.merchReject || 0}</td><td class="rate-val ${rc}">${rate}</td></tr>`;
   }).join('');
   
-  // 添加"加载更多"按钮
+  // 添加展开/折叠按钮
   const tableContainer = document.getElementById('viewTable');
   const existingFooter = tableContainer.querySelector('.table-footer');
   if (existingFooter) existingFooter.remove();
@@ -826,17 +842,19 @@ function renderMerchantTable() {
   if (hasMore) {
     const footer = document.createElement('div');
     footer.className = 'table-footer';
-    footer.textContent = `▼ 还有 ${sorted.length - MAX_VISIBLE} 条数据，点击展开`;
+    if (merchantTableExpanded) {
+      footer.textContent = `▲ 点击折叠，显示前 ${MAX_VISIBLE} 条`;
+    } else {
+      footer.textContent = `▼ 还有 ${sorted.length - MAX_VISIBLE} 条数据，点击展开`;
+    }
     footer.addEventListener('click', () => {
-      tbody.innerHTML = sorted.map(d => {
-        const total = (d.merchApprove || 0) + (d.merchReject || 0);
-        const rate = total === 0 ? '--' : Math.round((d.merchApprove || 0) / total * 100) + '%';
-        const rc = rate === '--' ? '' : rateClass(parseInt(rate));
-        return `<tr><td>${displayWeekWithRange(d.week)}</td><td class="person-val">${d.person || '--'}</td><td class="approve-val">${d.merchApprove || 0}</td><td class="reject-val">${d.merchReject || 0}</td><td class="rate-val ${rc}">${rate}</td></tr>`;
-      }).join('');
-      footer.remove();
+      merchantTableExpanded = !merchantTableExpanded;
+      renderMerchantTable();
     });
     tableContainer.appendChild(footer);
+  } else {
+    // 数据不足20条时重置状态
+    merchantTableExpanded = false;
   }
 }
 
