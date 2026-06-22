@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>商户准入周报 · 数据管理 v3.1</title>
+<title>商户准入周报 · 数据管理 v3.2</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -285,8 +285,13 @@
       </div>
       <div class="form-field">
         <label>填写人</label>
-        <input type="text" id="merchPerson" placeholder="姓名">
-        <input type="hidden" id="merchPersonLocked" value="">
+        <select id="merchPerson">
+          <option value="">请选择</option>
+          <option value="胡泽文">胡泽文</option>
+          <option value="周萍">周萍</option>
+          <option value="汪颖">汪颖</option>
+          <option value="陈欣璇">陈欣璇</option>
+        </select>
       </div>
       <div class="form-field">
         <label>准入通过</label>
@@ -493,7 +498,7 @@ function clearMerchForm() {
   document.getElementById('merchWeek').dataset.value = wk.value;
   // 如果姓名被 URL 锁定，不清空
   const merchPersonInput = document.getElementById('merchPerson');
-  if (!merchPersonInput.readOnly) {
+  if (!merchPersonInput.readOnly && !merchPersonInput.disabled) {
     merchPersonInput.value = '';
   }
   document.getElementById('merchApprove').value = 0;
@@ -666,10 +671,11 @@ function initApp() {
   const merchPersonInput = document.getElementById('merchPerson');
   
   if (urlPerson) {
-    merchPersonInput.value = decodeURIComponent(urlPerson);
-    merchPersonInput.readOnly = true;
-    merchPersonInput.classList.add('locked');
-    merchPersonInput.title = '由链接自动锁定，不可修改';
+    const decoded = decodeURIComponent(urlPerson);
+    if ([...merchPersonInput.options].some(o => o.value === decoded)) {
+      merchPersonInput.value = decoded;
+      merchPersonInput.disabled = true;
+    }
   }
 
   // 初始化 flatpickr 周选择器
