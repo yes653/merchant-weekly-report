@@ -8,13 +8,13 @@
 <meta http-equiv="Expires" content="0">
 <script>
   // 强制版本检查：如果本地缓存的版本不是 v3.6-TALL，则强制刷新
-  const EXPECTED_VERSION = 'v3.6-TALL';
+  const EXPECTED_VERSION = 'v4.0-FIXED-ROOT-CAUSE';
   if (sessionStorage.getItem('dashboard_version') !== EXPECTED_VERSION) {
     sessionStorage.setItem('dashboard_version', EXPECTED_VERSION);
     location.reload(true);
   }
 </script>
-<title>商户准入周报看板 v3.9-THIN-BARS</title>
+<title>商户准入周报看板 v4.0-FIXED-ROOT-CAUSE</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -251,7 +251,7 @@
     padding: 20px; margin-bottom: 20px; backdrop-filter: blur(12px);
     position: relative;
   }
-  .chart-container canvas { max-height: 800px; }
+  .chart-container canvas { max-height: none; }
 
   .data-table {
     width: 100%; border-collapse: separate; border-spacing: 0;
