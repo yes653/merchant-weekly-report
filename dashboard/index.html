@@ -8,13 +8,13 @@
 <meta http-equiv="Expires" content="0">
 <script>
   // 强制版本检查：如果本地缓存的版本不是 v3.6-TALL，则强制刷新
-  const EXPECTED_VERSION = 'v5.1';
+  const EXPECTED_VERSION = 'v5.2';
   if (sessionStorage.getItem('dashboard_version') !== EXPECTED_VERSION) {
     sessionStorage.setItem('dashboard_version', EXPECTED_VERSION);
     location.reload(true);
   }
 </script>
-<title>商户准入周报看板 v5.1</title>
+<title>商户准入周报看板 v5.2</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -255,6 +255,8 @@
   }
   .view-section { display: none; }
   .view-section.visible { display: block; }
+  .audit-view-section { display: none; }
+  .audit-view-section.visible { display: block; }
 
   .chart-container {
     background: var(--card); border: 1px solid var(--border); border-radius: 14px;
@@ -507,14 +509,25 @@
   <div class="summary-grid" id="auditSummaryGrid"></div>
 </div>
 
-<!-- 二级户图表 -->
-<div class="chart-container" style="height: 320px;"><canvas id="auditChart"></canvas></div>
+<!-- 二级户视图切换 -->
+<div class="view-tabs audit-view-tabs">
+  <button class="view-tab active" data-audit-view="chart">审核图表</button>
+  <button class="view-tab" data-audit-view="passtotal">通过总量</button>
+  <button class="view-tab" data-audit-view="table">审核明细</button>
+</div>
 
-<!-- 二级户表格 -->
-<table class="data-table" style="margin-top:16px;">
-  <thead><tr><th>周次</th><th>系统审核通过</th><th>系统审核驳回</th><th>人工审核通过</th><th>人工审核驳回</th><th>综合通过率</th></tr></thead>
-  <tbody id="auditTableBody"></tbody>
-</table>
+<div class="audit-view-section visible" id="auditViewChart">
+  <div class="chart-container" style="height: 320px;"><canvas id="auditChart"></canvas></div>
+</div>
+<div class="audit-view-section" id="auditViewPasstotal">
+  <div class="chart-container" style="height: 320px;"><canvas id="auditPassChart"></canvas></div>
+</div>
+<div class="audit-view-section" id="auditViewTable">
+  <table class="data-table" style="margin-top:0;">
+    <thead><tr><th>周次</th><th>系统审核通过</th><th>系统审核驳回</th><th>人工审核通过</th><th>人工审核驳回</th><th>综合通过率</th></tr></thead>
+    <tbody id="auditTableBody"></tbody>
+  </table>
+</div>
 
 <div class="footer">
   商户准入周报看板 · 数据更新于 <span id="footerTime"></span> · LOOP SYSTEM v3.0 · <a href="admin.html" style="color:var(--text-dim);text-decoration:none;" title="数据管理">⚙</a>
@@ -625,6 +638,7 @@ async function loadData() {
     renderMerchantTable();
     renderAuditSummary();
     renderAuditChart();
+    renderAuditPassTotal();
     renderAuditTable();
 
     const overlay = document.getElementById('loadingOverlay');
@@ -737,6 +751,17 @@ document.querySelectorAll('.view-tab').forEach(tab => {
     document.querySelectorAll('.view-section').forEach(s => s.classList.remove('visible'));
     tab.classList.add('active');
     document.getElementById('view' + tab.dataset.view.charAt(0).toUpperCase() + tab.dataset.view.slice(1)).classList.add('visible');
+  });
+});
+
+// 二级户视图切换
+document.querySelectorAll('.audit-view-tabs .view-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.audit-view-tabs .view-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.audit-view-section').forEach(s => s.classList.remove('visible'));
+    tab.classList.add('active');
+    const viewId = 'auditView' + tab.dataset.auditView.charAt(0).toUpperCase() + tab.dataset.auditView.slice(1);
+    document.getElementById(viewId).classList.add('visible');
   });
 });
 
@@ -1055,6 +1080,58 @@ function renderAuditChart() {
   });
 }
 
+// ─── 二级户通过总量图表 ─────────────────────────────
+let auditPassChartInst = null;
+
+function renderAuditPassTotal() {
+  const data = getRangeFiltered(D.audit, 'auditStartWeek', 'auditEndWeek');
+  const weeks = getWeeks(data);
+  const weekData = weeks.map(w => {
+    const wd = data.filter(d => d.week === w);
+    return {
+      week: w,
+      passTotal: wd.reduce((s, d) => s + (d.sysApprove || 0) + (d.manApprove || 0), 0),
+    };
+  });
+
+  const ctx = document.getElementById('auditPassChart').getContext('2d');
+  if (auditPassChartInst) auditPassChartInst.destroy();
+  auditPassChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: weekData.map(d => displayAuditWeekWithRange(d.week)),
+      datasets: [{
+        label: '通过总量',
+        data: weekData.map(d => d.passTotal),
+        backgroundColor: 'rgba(0,240,255,0.6)',
+        borderColor: '#00f0ff',
+        borderWidth: 1,
+        borderRadius: 4,
+        barPercentage: 0.5,
+        categoryPercentage: 0.7,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#e0f0ff', font: { family: 'Rajdhani', size: 13 } } },
+        tooltip: {
+          callbacks: {
+            afterBody: function(context) {
+              const idx = context[0].dataIndex;
+              return `系统通过 + 人工通过 = ${weekData[idx].passTotal}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#5a7a9a', font: { family: 'Rajdhani' } }, grid: { color: 'rgba(0,240,255,0.06)' } },
+        y: { beginAtZero: true, ticks: { color: '#5a7a9a', font: { family: 'Orbitron', size: 11 } }, grid: { color: 'rgba(0,240,255,0.06)' } },
+      }
+    }
+  });
+}
+
 function renderAuditTable() {
   const data = getRangeFiltered(D.audit, 'auditStartWeek', 'auditEndWeek');
   const sorted = [...data].sort((a, b) => a.week > b.week ? -1 : 1);
@@ -1100,11 +1177,12 @@ function renderAuditTable() {
     auditTableExpanded = false;
     renderAuditSummary();
     renderAuditChart();
+    renderAuditPassTotal();
     renderAuditTable();
   });
 });
 document.querySelectorAll('#auditTypeCheckboxes input').forEach(cb => {
-  cb.addEventListener('change', () => { auditTableExpanded = false; renderAuditSummary(); renderAuditChart(); renderAuditTable(); });
+  cb.addEventListener('change', () => { auditTableExpanded = false; renderAuditSummary(); renderAuditChart(); renderAuditPassTotal(); renderAuditTable(); });
 });
 
 // ─── 粒子效果 ─────────────────────────────
