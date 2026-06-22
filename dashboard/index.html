@@ -8,13 +8,13 @@
 <meta http-equiv="Expires" content="0">
 <script>
   // 强制版本检查：如果本地缓存的版本不是 v3.6-TALL，则强制刷新
-  const EXPECTED_VERSION = 'v4.3';
+  const EXPECTED_VERSION = 'v5.0';
   if (sessionStorage.getItem('dashboard_version') !== EXPECTED_VERSION) {
     sessionStorage.setItem('dashboard_version', EXPECTED_VERSION);
     location.reload(true);
   }
 </script>
-<title>商户准入周报看板 v4.3</title>
+<title>商户准入周报看板 v5.0</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -183,6 +183,16 @@
   .checkbox-group input:checked + .cb-box::after { background: var(--neon-cyan); }
   .checkbox-group input:checked ~ .cb-label { color: var(--text); }
 
+  /* 时间范围信息条 */
+  .range-info {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 18px; margin-bottom: 14px; display: flex; align-items: center;
+    gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--text-dim);
+    font-family: 'Rajdhani', sans-serif; letter-spacing: 0.5px;
+  }
+  .range-info .ri-label { color: var(--text); font-weight: 600; }
+  .range-info .ri-highlight { color: var(--neon-cyan); font-family: 'Orbitron', monospace; font-weight: 700; }
+
   /* === 汇总统计区 === */
   .summary-panel {
     background: var(--card); border: 1px solid var(--border-bright); border-radius: 14px;
@@ -252,6 +262,26 @@
     position: relative;
   }
   .chart-container canvas { max-height: none; }
+
+  /* 图表选项栏 */
+  .chart-options {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 16px; backdrop-filter: blur(10px); flex-wrap: wrap;
+  }
+  .chart-options label { font-size: 13px; color: var(--text-dim); font-weight: 600; white-space: nowrap; }
+  .btn-group { display: flex; gap: 2px; background: rgba(8,18,32,0.8); border-radius: 8px; padding: 3px; }
+  .btn-opt {
+    padding: 6px 14px; border: none; border-radius: 6px; background: transparent;
+    color: var(--text-dim); font-family: 'Rajdhani', sans-serif; font-size: 13px;
+    font-weight: 600; cursor: pointer; transition: all 0.25s; white-space: nowrap;
+  }
+  .btn-opt.active {
+    background: linear-gradient(135deg, rgba(0,240,255,0.2), rgba(0,240,255,0.05));
+    color: var(--neon-cyan); box-shadow: 0 0 12px rgba(0,240,255,0.15);
+    border: 1px solid rgba(0,240,255,0.3);
+  }
+  .btn-opt:hover:not(.active) { color: var(--text); }
 
   .data-table {
     width: 100%; border-collapse: separate; border-spacing: 0;
@@ -351,6 +381,11 @@
   <button onclick="loadData()" style="margin-left:auto;padding:6px 16px;background:rgba(0,240,255,0.15);border:1px solid var(--neon-cyan);border-radius:6px;color:var(--neon-cyan);cursor:pointer;font-family:'Rajdhani',sans-serif;">重试</button>
 </div>
 
+<div class="range-info" id="merchRangeInfo">
+  <span>📅 时间范围：<span class="ri-highlight" id="merchRangeDisplay">--</span></span>
+  <span>｜覆盖 <span class="ri-highlight" id="merchRangeWeeks">--</span> 周</span>
+</div>
+
 <!-- KPI -->
 <div class="kpi-bar">
   <div class="kpi-card kpi-merch-approve">
@@ -419,10 +454,23 @@
 </div>
 
 <div class="view-section visible" id="viewChart">
+  <div class="chart-options">
+    <label>图表类型：</label>
+    <div class="btn-group" id="chartTypeGroup">
+      <button class="btn-opt active" data-chart-type="bar">📊 柱状图</button>
+      <button class="btn-opt" data-chart-type="line">📈 折线图</button>
+    </div>
+    <div class="filter-sep"></div>
+    <label>显示数值：</label>
+    <div class="btn-group" id="chartValueGroup">
+      <button class="btn-opt active" data-chart-value="on">开</button>
+      <button class="btn-opt" data-chart-value="off">关</button>
+    </div>
+  </div>
   <div class="chart-container" style="height: 450px;"><canvas id="merchantChart"></canvas></div>
 </div>
 <div class="view-section" id="viewRate">
-  <div class="chart-container"><canvas id="rateChart"></canvas></div>
+  <div class="chart-container" style="height: 220px;"><canvas id="rateChart"></canvas></div>
 </div>
 <div class="view-section" id="viewTable">
   <table class="data-table">
@@ -461,7 +509,7 @@
 </div>
 
 <!-- 二级户图表 -->
-<div class="chart-container" style="height: 180px;"><canvas id="auditChart"></canvas></div>
+<div class="chart-container" style="height: 320px;"><canvas id="auditChart"></canvas></div>
 
 <!-- 二级户表格 -->
 <table class="data-table" style="margin-top:16px;">
@@ -701,6 +749,13 @@ function renderMerchantSummary() {
   const weeks = [...new Set(data.map(d => d.week))];
   const persons = [...new Set(data.map(d => d.person))].filter(Boolean);
 
+  // 更新时间范围信息条
+  const startW = document.getElementById('merchStartWeek').value;
+  const endW = document.getElementById('merchEndWeek').value;
+  const rangeStr = (startW && endW) ? `${startW} ~ ${endW}` : (startW || endW || '全部');
+  document.getElementById('merchRangeDisplay').textContent = rangeStr;
+  document.getElementById('merchRangeWeeks').textContent = weeks.length;
+
   document.getElementById('sumMerchApprove').textContent = totalApp;
   document.getElementById('sumMerchReject').textContent = totalRej;
   document.getElementById('sumMerchTotal').textContent = totalAll;
@@ -750,13 +805,24 @@ function renderMerchantChart() {
 
   const ctx = document.getElementById('merchantChart').getContext('2d');
   if (merchChart) merchChart.destroy();
+
+  // 读取用户选择的图表类型和数值显示
+  const chartTypeEl = document.querySelector('#chartTypeGroup .btn-opt.active');
+  const chartType = chartTypeEl ? chartTypeEl.dataset.chartType : 'bar';
+  const showValue = document.querySelector('#chartValueGroup .btn-opt.active')?.dataset.chartValue === 'on';
+
+  const isBar = chartType === 'bar';
+
   merchChart = new Chart(ctx, {
-    type: 'bar',
+    type: chartType,
     data: {
       labels: weekData.map(d => displayWeekWithRange(d.week)),
-      datasets: [
+      datasets: isBar ? [
         { label: '准入通过', data: weekData.map(d => d.approve), backgroundColor: 'rgba(0,255,136,0.7)', borderColor: '#00ff88', borderWidth: 1, borderRadius: 4, barPercentage: 0.5, categoryPercentage: 0.7 },
         { label: '准入驳回', data: weekData.map(d => d.reject), backgroundColor: 'rgba(255,51,85,0.7)', borderColor: '#ff3355', borderWidth: 1, borderRadius: 4, barPercentage: 0.5, categoryPercentage: 0.7 },
+      ] : [
+        { label: '准入通过', data: weekData.map(d => d.approve), borderColor: '#00ff88', backgroundColor: 'rgba(0,255,136,0.1)', borderWidth: 2, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#00ff88', fill: true },
+        { label: '准入驳回', data: weekData.map(d => d.reject), borderColor: '#ff3355', backgroundColor: 'rgba(255,51,85,0.1)', borderWidth: 2, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#ff3355', fill: true },
       ]
     },
     options: {
@@ -773,11 +839,34 @@ function renderMerchantChart() {
           }
         }
       },
-      scales: {
+      scales: isBar ? {
         x: { stacked: true, ticks: { color: '#5a7a9a', font: { family: 'Rajdhani' } }, grid: { color: 'rgba(0,240,255,0.06)' } },
         y: { stacked: true, ticks: { color: '#5a7a9a', font: { family: 'Orbitron', size: 11 } }, grid: { color: 'rgba(0,240,255,0.06)' }, beginAtZero: true },
+      } : {
+        x: { ticks: { color: '#5a7a9a', font: { family: 'Rajdhani' } }, grid: { color: 'rgba(0,240,255,0.06)' } },
+        y: { stacked: false, ticks: { color: '#5a7a9a', font: { family: 'Orbitron', size: 11 } }, grid: { color: 'rgba(0,240,255,0.06)' }, beginAtZero: true },
       }
-    }
+    },
+    plugins: showValue ? [{
+      id: 'valueLabels',
+      afterDraw: function(chart) {
+        const ctx = chart.ctx;
+        chart.data.datasets.forEach((dataset, i) => {
+          const meta = chart.getDatasetMeta(i);
+          meta.data.forEach((bar, index) => {
+            const data = dataset.data[index];
+            if (data === 0 || data == null) return;
+            ctx.save();
+            ctx.fillStyle = i === 0 ? '#00ff88' : '#ff3355';
+            ctx.font = '10px Orbitron';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(data, bar.x, bar.y - 4);
+            ctx.restore();
+          });
+        });
+      }
+    }] : []
   });
 }
 
@@ -876,6 +965,16 @@ function renderMerchantTable() {
   });
 });
 
+// 图表选项切换
+document.querySelectorAll('#chartTypeGroup .btn-opt, #chartValueGroup .btn-opt').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const parent = this.parentElement;
+    parent.querySelectorAll('.btn-opt').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    renderMerchantChart();
+  });
+});
+
 // ─── 二级户汇总统计 ─────────────────────────────
 function getCheckedAuditTypes() {
   return Array.from(document.querySelectorAll('#auditTypeCheckboxes input:checked')).map(cb => cb.value);
@@ -910,11 +1009,19 @@ function renderAuditSummary() {
   const rc = passRate === '--' ? '' : rateClass(parseInt(passRate));
   html += `<div class="summary-item"><div class="s-label">综合通过率</div><div class="s-value ${rc}">${passRate}</div></div>`;
 
+  // 机审处理率（系统通过 + 系统驳回）
+  const sysApproveTotal = types.includes('sysApprove') ? data.reduce((s, d) => s + (d.sysApprove || 0), 0) : 0;
+  const sysRejectTotal = types.includes('sysReject') ? data.reduce((s, d) => s + (d.sysReject || 0), 0) : 0;
+  const machineTotal = sysApproveTotal + sysRejectTotal;
+  const machineRate = allTotal === 0 ? '--' : Math.round(machineTotal / allTotal * 100) + '%';
+  html += `<div class="summary-item"><div class="s-label">机审处理率</div><div class="s-value s-val-cyan">${machineRate}</div></div>`;
+
   grid.innerHTML = html;
 }
 
 // ─── 二级户图表 ─────────────────────────────
 let auditChartInst = null;
+let auditTableExpanded = false;
 
 function renderAuditChart() {
   const data = getRangeFiltered(D.audit, 'auditStartWeek', 'auditEndWeek');
@@ -955,12 +1062,12 @@ function renderAuditTable() {
   const data = getRangeFiltered(D.audit, 'auditStartWeek', 'auditEndWeek');
   const sorted = [...data].sort((a, b) => a.week > b.week ? -1 : 1);
   
-  const MAX_VISIBLE = 10;
-  const visibleRows = sorted.slice(0, MAX_VISIBLE);
+  const MAX_VISIBLE = 5;
   const hasMore = sorted.length > MAX_VISIBLE;
+  const rowsToShow = (!auditTableExpanded && hasMore) ? sorted.slice(0, MAX_VISIBLE) : sorted;
   
   const tbody = document.getElementById('auditTableBody');
-  tbody.innerHTML = visibleRows.map(d => {
+  tbody.innerHTML = rowsToShow.map(d => {
     const totalApp = (d.sysApprove || 0) + (d.manApprove || 0);
     const totalAll = totalApp + (d.sysReject || 0) + (d.manReject || 0);
     const rate = totalAll === 0 ? '--' : Math.round(totalApp / totalAll * 100) + '%';
@@ -968,38 +1075,39 @@ function renderAuditTable() {
     return `<tr><td>${displayAuditWeekWithRange(d.week)}</td><td class="approve-val">${d.sysApprove || 0}</td><td class="reject-val">${d.sysReject || 0}</td><td class="approve-val">${d.manApprove || 0}</td><td class="reject-val">${d.manReject || 0}</td><td class="rate-val ${rc}">${rate}</td></tr>`;
   }).join('');
   
-  // 添加"加载更多"按钮
-  const auditTableContainer = document.querySelector('#viewTable').parentElement.parentElement;
-  const existingFooter = auditTableContainer.querySelector('.table-footer.audit-footer');
+  // 添加展开/折叠按钮
+  const auditTableContainer = document.querySelector('#auditTableBody').closest('.view-section') || document.querySelector('.section-divider.audit').parentElement;
+  const existingFooter = document.querySelector('.table-footer.audit-footer');
   if (existingFooter) existingFooter.remove();
   
   if (hasMore) {
     const footer = document.createElement('div');
     footer.className = 'table-footer audit-footer';
-    footer.textContent = `▼ 还有 ${sorted.length - MAX_VISIBLE} 条数据，点击展开`;
+    footer.textContent = auditTableExpanded
+      ? `▲ 点击折叠，显示前 ${MAX_VISIBLE} 条`
+      : `▼ 还有 ${sorted.length - MAX_VISIBLE} 条数据，点击展开`;
     footer.addEventListener('click', () => {
-      tbody.innerHTML = sorted.map(d => {
-        const totalApp = (d.sysApprove || 0) + (d.manApprove || 0);
-        const totalAll = totalApp + (d.sysReject || 0) + (d.manReject || 0);
-        const rate = totalAll === 0 ? '--' : Math.round(totalApp / totalAll * 100) + '%';
-        const rc = rate === '--' ? '' : rateClass(parseInt(rate));
-        return `<tr><td>${displayAuditWeekWithRange(d.week)}</td><td class="approve-val">${d.sysApprove || 0}</td><td class="reject-val">${d.sysReject || 0}</td><td class="approve-val">${d.manApprove || 0}</td><td class="reject-val">${d.manReject || 0}</td><td class="rate-val ${rc}">${rate}</td></tr>`;
-      }).join('');
-      footer.remove();
+      auditTableExpanded = !auditTableExpanded;
+      renderAuditTable();
     });
-    auditTableContainer.appendChild(footer);
+    // 插到表格下方
+    const table = document.querySelector('.data-table');
+    table.parentElement.insertBefore(footer, table.nextSibling);
+  } else {
+    auditTableExpanded = false;
   }
 }
 
 ['auditStartWeek', 'auditEndWeek'].forEach(id => {
   document.getElementById(id).addEventListener('change', () => {
+    auditTableExpanded = false;
     renderAuditSummary();
     renderAuditChart();
     renderAuditTable();
   });
 });
 document.querySelectorAll('#auditTypeCheckboxes input').forEach(cb => {
-  cb.addEventListener('change', () => { renderAuditSummary(); renderAuditChart(); });
+  cb.addEventListener('change', () => { auditTableExpanded = false; renderAuditSummary(); renderAuditChart(); renderAuditTable(); });
 });
 
 // ─── 粒子效果 ─────────────────────────────
