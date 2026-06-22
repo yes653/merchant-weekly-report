@@ -8,13 +8,13 @@
 <meta http-equiv="Expires" content="0">
 <script>
   // 强制版本检查：如果本地缓存的版本不是 v3.6-TALL，则强制刷新
-  const EXPECTED_VERSION = 'v5.2';
+  const EXPECTED_VERSION = 'v5.3';
   if (sessionStorage.getItem('dashboard_version') !== EXPECTED_VERSION) {
     sessionStorage.setItem('dashboard_version', EXPECTED_VERSION);
     location.reload(true);
   }
 </script>
-<title>商户准入周报看板 v5.2</title>
+<title>商户准入周报看板 v5.3</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -520,6 +520,19 @@
   <div class="chart-container" style="height: 320px;"><canvas id="auditChart"></canvas></div>
 </div>
 <div class="audit-view-section" id="auditViewPasstotal">
+  <div class="chart-options">
+    <label>图表类型：</label>
+    <div class="btn-group" id="auditPassChartTypeGroup">
+      <button class="btn-opt active" data-audit-pass-chart="bar">📊 柱状图</button>
+      <button class="btn-opt" data-audit-pass-chart="line">📈 折线图</button>
+    </div>
+    <div class="filter-sep"></div>
+    <label>显示数值：</label>
+    <div class="btn-group" id="auditPassChartValueGroup">
+      <button class="btn-opt active" data-audit-pass-value="on">开</button>
+      <button class="btn-opt" data-audit-pass-value="off">关</button>
+    </div>
+  </div>
   <div class="chart-container" style="height: 320px;"><canvas id="auditPassChart"></canvas></div>
 </div>
 <div class="audit-view-section" id="auditViewTable">
@@ -1094,21 +1107,32 @@ function renderAuditPassTotal() {
     };
   });
 
+  // 读取用户选择的图表类型和数值显示
+  const chartTypeEl = document.querySelector('#auditPassChartTypeGroup .btn-opt.active');
+  const chartType = chartTypeEl ? chartTypeEl.dataset.auditPassChart : 'bar';
+  const showValue = document.querySelector('#auditPassChartValueGroup .btn-opt.active')?.dataset.auditPassValue === 'on';
+
+  const isBar = chartType === 'bar';
+
   const ctx = document.getElementById('auditPassChart').getContext('2d');
   if (auditPassChartInst) auditPassChartInst.destroy();
   auditPassChartInst = new Chart(ctx, {
-    type: 'bar',
+    type: chartType,
     data: {
       labels: weekData.map(d => displayAuditWeekWithRange(d.week)),
       datasets: [{
         label: '通过总量',
         data: weekData.map(d => d.passTotal),
-        backgroundColor: 'rgba(0,240,255,0.6)',
+        backgroundColor: isBar ? 'rgba(0,240,255,0.6)' : 'rgba(0,240,255,0.1)',
         borderColor: '#00f0ff',
-        borderWidth: 1,
-        borderRadius: 4,
-        barPercentage: 0.5,
-        categoryPercentage: 0.7,
+        borderWidth: isBar ? 1 : 2,
+        borderRadius: isBar ? 4 : 0,
+        barPercentage: isBar ? 0.5 : undefined,
+        categoryPercentage: isBar ? 0.7 : undefined,
+        tension: isBar ? 0 : 0.3,
+        pointRadius: isBar ? 0 : 4,
+        pointBackgroundColor: '#00f0ff',
+        fill: isBar ? false : true,
       }]
     },
     options: {
@@ -1128,7 +1152,27 @@ function renderAuditPassTotal() {
         x: { ticks: { color: '#5a7a9a', font: { family: 'Rajdhani' } }, grid: { color: 'rgba(0,240,255,0.06)' } },
         y: { beginAtZero: true, ticks: { color: '#5a7a9a', font: { family: 'Orbitron', size: 11 } }, grid: { color: 'rgba(0,240,255,0.06)' } },
       }
-    }
+    },
+    plugins: showValue ? [{
+      id: 'valueLabels',
+      afterDraw: function(chart) {
+        const ctx = chart.ctx;
+        chart.data.datasets.forEach((dataset) => {
+          const meta = chart.getDatasetMeta(0);
+          meta.data.forEach((bar, index) => {
+            const data = dataset.data[index];
+            if (data === 0 || data == null) return;
+            ctx.save();
+            ctx.fillStyle = '#00f0ff';
+            ctx.font = '10px Orbitron';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(data, bar.x, bar.y - 4);
+            ctx.restore();
+          });
+        });
+      }
+    }] : []
   });
 }
 
@@ -1183,6 +1227,16 @@ function renderAuditTable() {
 });
 document.querySelectorAll('#auditTypeCheckboxes input').forEach(cb => {
   cb.addEventListener('change', () => { auditTableExpanded = false; renderAuditSummary(); renderAuditChart(); renderAuditPassTotal(); renderAuditTable(); });
+});
+
+// 二级户通过总量图表选项切换
+document.querySelectorAll('#auditPassChartTypeGroup .btn-opt, #auditPassChartValueGroup .btn-opt').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const parent = this.parentElement;
+    parent.querySelectorAll('.btn-opt').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    renderAuditPassTotal();
+  });
 });
 
 // ─── 粒子效果 ─────────────────────────────
