@@ -8,13 +8,13 @@
 <meta http-equiv="Expires" content="0">
 <script>
   // 强制版本检查：如果本地缓存的版本不是 v3.6-TALL，则强制刷新
-  const EXPECTED_VERSION = 'v5.0';
+  const EXPECTED_VERSION = 'v5.1';
   if (sessionStorage.getItem('dashboard_version') !== EXPECTED_VERSION) {
     sessionStorage.setItem('dashboard_version', EXPECTED_VERSION);
     location.reload(true);
   }
 </script>
-<title>商户准入周报看板 v5.0</title>
+<title>商户准入周报看板 v5.1</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -382,8 +382,7 @@
 </div>
 
 <div class="range-info" id="merchRangeInfo">
-  <span>📅 时间范围：<span class="ri-highlight" id="merchRangeDisplay">--</span></span>
-  <span>｜覆盖 <span class="ri-highlight" id="merchRangeWeeks">--</span> 周</span>
+  <span>📅 KPI最新周：<span class="ri-highlight" id="merchRangeDisplay">--</span></span>
 </div>
 
 <!-- KPI -->
@@ -724,6 +723,11 @@ function updateKPI() {
   document.getElementById('kpiSubApproveSub').innerHTML = trend(aSysApp + aManApp, paSysApp + paManApp, latestAW, prevAW);
   document.getElementById('kpiSubReject').textContent = aSysRej + aManRej;
   document.getElementById('kpiSubRejectSub').innerHTML = trend(aSysRej + aManRej, paSysRej + paManRej, latestAW, prevAW);
+
+  // 更新顶部时间范围信息条（显示KPI对应的最新周）
+  const latestMerchRange = displayWeekWithRange ? displayWeekWithRange(latestMW) : latestMW;
+  const latestAuditRange = displayAuditWeekWithRange ? displayAuditWeekWithRange(latestAW) : latestAW;
+  document.getElementById('merchRangeDisplay').textContent = `商户: ${latestMerchRange} | 二级户: ${latestAuditRange}`;
 }
 
 // ─── 视图切换 ─────────────────────────────
@@ -748,13 +752,6 @@ function renderMerchantSummary() {
   const rate = totalAll === 0 ? '--' : Math.round(totalApp / totalAll * 100) + '%';
   const weeks = [...new Set(data.map(d => d.week))];
   const persons = [...new Set(data.map(d => d.person))].filter(Boolean);
-
-  // 更新时间范围信息条
-  const startW = document.getElementById('merchStartWeek').value;
-  const endW = document.getElementById('merchEndWeek').value;
-  const rangeStr = (startW && endW) ? `${startW} ~ ${endW}` : (startW || endW || '全部');
-  document.getElementById('merchRangeDisplay').textContent = rangeStr;
-  document.getElementById('merchRangeWeeks').textContent = weeks.length;
 
   document.getElementById('sumMerchApprove').textContent = totalApp;
   document.getElementById('sumMerchReject').textContent = totalRej;
@@ -1090,9 +1087,9 @@ function renderAuditTable() {
       auditTableExpanded = !auditTableExpanded;
       renderAuditTable();
     });
-    // 插到表格下方
-    const table = document.querySelector('.data-table');
-    table.parentElement.insertBefore(footer, table.nextSibling);
+    // 插到二级户表格下方
+    const auditTable = document.getElementById('auditTableBody').closest('.data-table');
+    auditTable.parentElement.insertBefore(footer, auditTable.nextSibling);
   } else {
     auditTableExpanded = false;
   }
