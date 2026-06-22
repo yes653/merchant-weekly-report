@@ -135,6 +135,20 @@
     background: rgba(0,240,255,0.08); border-color: rgba(0,240,255,0.25);
     cursor: default; color: var(--neon-cyan); font-weight: 700;
   }
+  .form-field select {
+    padding: 10px 14px; background: rgba(8,18,32,0.9); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-family: 'Rajdhani', sans-serif;
+    font-size: 15px; font-weight: 500; outline: none; transition: border-color 0.3s;
+    cursor: pointer; width: 100%; appearance: auto;
+    -webkit-appearance: auto; -moz-appearance: auto;
+  }
+  .form-field select:focus {
+    border-color: var(--neon-cyan); box-shadow: 0 0 10px rgba(0,240,255,0.15);
+  }
+  .form-field select:disabled {
+    background: rgba(0,240,255,0.08); border-color: rgba(0,240,255,0.25);
+    cursor: default; color: var(--neon-cyan); font-weight: 700;
+  }
 
   /* flatpickr 自定义主题 */
   .flatpickr-calendar {
