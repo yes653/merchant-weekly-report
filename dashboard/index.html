@@ -14,7 +14,7 @@
     location.reload(true);
   }
 </script>
-<title>商户准入周报看板 v3.8-OPTIMIZED</title>
+<title>商户准入周报看板 v3.9-THIN-BARS</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -419,7 +419,7 @@
 </div>
 
 <div class="view-section visible" id="viewChart">
-  <div class="chart-container" style="max-height: 900px;"><canvas id="merchantChart"></canvas></div>
+  <div class="chart-container" style="max-height: 1200px;"><canvas id="merchantChart"></canvas></div>
 </div>
 <div class="view-section" id="viewRate">
   <div class="chart-container"><canvas id="rateChart"></canvas></div>
@@ -755,8 +755,8 @@ function renderMerchantChart() {
     data: {
       labels: weekData.map(d => displayWeekWithRange(d.week)),
       datasets: [
-        { label: '准入通过', data: weekData.map(d => d.approve), backgroundColor: 'rgba(0,255,136,0.7)', borderColor: '#00ff88', borderWidth: 1, borderRadius: 4 },
-        { label: '准入驳回', data: weekData.map(d => d.reject), backgroundColor: 'rgba(255,51,85,0.7)', borderColor: '#ff3355', borderWidth: 1, borderRadius: 4 },
+        { label: '准入通过', data: weekData.map(d => d.approve), backgroundColor: 'rgba(0,255,136,0.7)', borderColor: '#00ff88', borderWidth: 1, borderRadius: 4, barPercentage: 0.5, categoryPercentage: 0.7 },
+        { label: '准入驳回', data: weekData.map(d => d.reject), backgroundColor: 'rgba(255,51,85,0.7)', borderColor: '#ff3355', borderWidth: 1, borderRadius: 4, barPercentage: 0.5, categoryPercentage: 0.7 },
       ]
     },
     options: {
