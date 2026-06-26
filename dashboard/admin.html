@@ -330,11 +330,11 @@
         </select>
       </div>
       <div class="form-field">
-        <label>准入通过</label>
+        <label>商户准入数</label>
         <input type="number" id="merchApprove" min="0" value="0">
       </div>
       <div class="form-field">
-        <label>准入驳回</label>
+        <label>禁止准入数</label>
         <input type="number" id="merchReject" min="0" value="0">
       </div>
     </div>
@@ -350,7 +350,7 @@
       <button class="btn-export" onclick="exportMerchCSV()">📥 导出CSV</button>
     </div>
     <div class="data-list-header merchant">
-      <span>周次</span><span>填写人</span><span>通过</span><span>驳回</span><span>通过率</span><span>操作</span>
+      <span>周次</span><span>填写人</span><span>商户准入数</span><span>禁止准入数</span><span>操作</span>
     </div>
     <div id="merchListBody">
       <div class="empty-state">加载中...</div>
@@ -529,7 +529,7 @@ function showDupWarning(prefix, dup, person, week) {
   if (dup) {
     const personInfo = person ? `${person} · ` : '';
     const existingValues = prefix === 'merch'
-      ? `通过:${dup.merch_approve || 0} 驳回:${dup.merch_reject || 0}`
+      ? `商户准入数:${dup.merch_approve || 0} 禁止准入数:${dup.merch_reject || 0}`
       : `系统通过:${dup.sys_approve || 0} 系统驳回:${dup.sys_reject || 0} 人工通过:${dup.man_approve || 0} 人工驳回:${dup.man_reject || 0}`;
     msgEl.textContent = `检测到重复：${personInfo}${formatDisplayWeek(week)} 已存在记录（${existingValues}）。提交将覆盖原有数据。`;
     el.classList.add('show');
@@ -559,14 +559,11 @@ async function loadMerchList() {
   }
 
   body.innerHTML = cachedMerchData.map(d => {
-    const total = (d.merch_approve || 0) + (d.merch_reject || 0);
-    const rate = total === 0 ? '--' : Math.round((d.merch_approve || 0) / total * 100) + '%';
     return `<div class="data-list-item merchant" data-id="${d.id}">
       <span class="val-cyan">${formatDisplayWeek(d.week)}</span>
       <span>${d.person || '--'}</span>
       <span class="val-green">${d.merch_approve || 0}</span>
       <span class="val-red">${d.merch_reject || 0}</span>
-      <span>${rate}</span>
       <div class="action-btns">
         <button class="btn-sm btn-edit" data-action="edit-merch" data-id="${d.id}">编辑</button>
         <button class="btn-sm btn-del" data-action="del-merch" data-id="${d.id}">删除</button>
@@ -588,7 +585,7 @@ document.getElementById('merchSubmit').addEventListener('click', async () => {
   const dup = await checkMerchDuplicate(week, person, editingMerchId);
   if (dup && !editingMerchId) {
     // 新增模式且存在重复 — 显示警告 + 要求二次确认
-    const existingInfo = `通过:${dup.merch_approve || 0} 驳回:${dup.merch_reject || 0}`;
+    const existingInfo = `商户准入数:${dup.merch_approve || 0} 禁止准入数:${dup.merch_reject || 0}`;
     if (!confirm(`⚠️ 重复录入警告\n\n${person} 在 ${formatDisplayWeek(week)} 已有记录（${existingInfo}）。\n\n确定要覆盖吗？`)) {
       return;
     }
@@ -754,11 +751,10 @@ function generateCSV(headers, rows, filename) {
 
 function exportMerchCSV() {
   if (!cachedMerchData.length) { showToast('无数据可导出', 'error'); return; }
-  const headers = ['周次', '填写人', '准入通过', '准入驳回', '合计', '通过率'];
+  const headers = ['周次', '填写人', '商户准入数', '禁止准入数', '合计'];
   const rows = cachedMerchData.map(d => {
     const t = (d.merch_approve || 0) + (d.merch_reject || 0);
-    const r = t === 0 ? '--' : Math.round((d.merch_approve || 0) / t * 100) + '%';
-    return [d.week, d.person || '', d.merch_approve || 0, d.merch_reject || 0, t, r];
+    return [d.week, d.person || '', d.merch_approve || 0, d.merch_reject || 0, t];
   });
   generateCSV(headers, rows, `商户准入数据_${new Date().toISOString().slice(0,10)}.csv`);
   showToast(`已导出 ${rows.length} 条商户数据`);
