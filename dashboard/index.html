@@ -497,12 +497,12 @@
 
 <div class="kpi-bar">
   <div class="kpi-card kpi-merch-approve">
-    <div class="kpi-label">商户准入通过</div>
+    <div class="kpi-label">商户准入数</div>
     <div class="kpi-value" id="kpiMerchApprove">--</div>
     <div class="kpi-sub" id="kpiMerchApproveSub"></div>
   </div>
   <div class="kpi-card kpi-merch-reject">
-    <div class="kpi-label">商户准入驳回</div>
+    <div class="kpi-label">禁止准入数</div>
     <div class="kpi-value" id="kpiMerchReject">--</div>
     <div class="kpi-sub" id="kpiMerchRejectSub"></div>
   </div>
@@ -549,22 +549,20 @@
 <div class="summary-panel" id="merchSummaryPanel">
   <h3>汇总统计</h3>
   <div class="summary-grid">
-    <div class="summary-item"><div class="s-label">准入通过</div><div class="s-value s-val-green" id="sumMerchApprove">--</div></div>
-    <div class="summary-item"><div class="s-label">准入驳回</div><div class="s-value s-val-red" id="sumMerchReject">--</div></div>
+    <div class="summary-item"><div class="s-label">商户准入数</div><div class="s-value s-val-green" id="sumMerchApprove">--</div></div>
+    <div class="summary-item"><div class="s-label">禁止准入数</div><div class="s-value s-val-red" id="sumMerchReject">--</div></div>
     <div class="summary-item"><div class="s-label">合计</div><div class="s-value s-val-cyan" id="sumMerchTotal">--</div></div>
-    <div class="summary-item"><div class="s-label">通过率</div><div class="s-value s-val-amber" id="sumMerchRate">--</div></div>
     <div class="summary-item"><div class="s-label">覆盖周数</div><div class="s-value s-val-cyan" id="sumMerchWeeks">--</div></div>
     <div class="summary-item"><div class="s-label">覆盖人员</div><div class="s-value s-val-cyan" id="sumMerchPersons">--</div></div>
   </div>
   <table class="person-summary-table" id="merchPersonSummaryTable">
-    <thead><tr><th>填写人</th><th>准入通过</th><th>准入驳回</th><th>合计</th><th>通过率</th></tr></thead>
+    <thead><tr><th>填写人</th><th>商户准入数</th><th>禁止准入数</th><th>合计</th></tr></thead>
     <tbody id="merchPersonSummaryBody"></tbody>
   </table>
 </div>
 
 <div class="view-tabs">
   <button class="view-tab active" data-view="chart">图表视图</button>
-  <button class="view-tab" data-view="rate">通过率趋势</button>
   <button class="view-tab" data-view="table">数据明细</button>
 </div>
 
@@ -584,13 +582,10 @@
   </div>
   <div class="chart-container" style="height: 450px;"><canvas id="merchantChart"></canvas></div>
 </div>
-<div class="view-section" id="viewRate">
-  <div class="chart-container" style="height: 220px;"><canvas id="rateChart"></canvas></div>
-</div>
-<div class="view-section" id="viewTable">
+<div class="view-section visible" id="viewTable">
   <div class="data-table-wrapper">
     <table class="data-table" id="merchantDataTable">
-      <thead><tr><th>周次</th><th>填写人</th><th>准入通过</th><th>准入驳回</th><th>通过率</th></tr></thead>
+      <thead><tr><th>周次</th><th>填写人</th><th>商户准入数</th><th>禁止准入数</th></tr></thead>
       <tbody id="merchantTableBody"></tbody>
     </table>
     <div class="pagination" id="merchantPagination"></div>
@@ -774,7 +769,6 @@ async function loadData() {
     renderMomPanel();
     renderMerchantSummary();
     renderMerchantChart();
-    renderRateChart();
     renderMerchantTable();
     renderAuditSummary();
     renderAuditChart();
@@ -900,13 +894,13 @@ function renderMomPanel() {
 
   const items = [
     {
-      label: '商户准入通过', curWeek: latestMW, prevWeek: prevMW,
+      label: '商户准入数', curWeek: latestMW, prevWeek: prevMW,
       cur: weeklySum(md, latestMW, 'merchApprove'),
       prev: prevMW ? weeklySum(md, prevMW, 'merchApprove') : null,
       color: 'var(--neon-green)'
     },
     {
-      label: '商户准入驳回', curWeek: latestMW, prevWeek: prevMW,
+      label: '禁止准入数', curWeek: latestMW, prevWeek: prevMW,
       cur: weeklySum(md, latestMW, 'merchReject'),
       prev: prevMW ? weeklySum(md, prevMW, 'merchReject') : null,
       color: 'var(--neon-red)'
@@ -924,25 +918,7 @@ function renderMomPanel() {
       color: 'var(--neon-amber)'
     },
   ];
-
-  // 近4周移动平均
-  items.push({
-    label: '商户通过率', curWeek: latestMW, prevWeek: prevMW,
-    cur: (() => {
-      const d = md.filter(r => r.week === latestMW);
-      const a = d.reduce((s, r) => s + (r.merchApprove || 0), 0);
-      const t = a + d.reduce((s, r) => s + (r.merchReject || 0), 0);
-      return t ? Math.round(a / t * 100) : null;
-    })(),
-    prev: (() => {
-      if (!prevMW) return null;
-      const d = md.filter(r => r.week === prevMW);
-      const a = d.reduce((s, r) => s + (r.merchApprove || 0), 0);
-      const t = a + d.reduce((s, r) => s + (r.merchReject || 0), 0);
-      return t ? Math.round(a / t * 100) : null;
-    })(),
-    color: 'var(--neon-magenta)', suffix: '%'
-  });
+  // 近4周移动平均 — 已移除商户通过率
 
   function deltaEl(cur, prev, suffix) {
     if (prev == null) return '';
@@ -977,11 +953,10 @@ function exportCSV(type) {
     const personVal = document.getElementById('merchPersonFilter').value;
     const filtered = personVal !== 'all' ? data.filter(d => d.person === personVal) : data;
     const sorted = [...filtered].sort((a, b) => a.week > b.week ? -1 : a.week < b.week ? 1 : 0);
-    headers = ['周次', '填写人', '准入通过', '准入驳回', '合计', '通过率'];
+    headers = ['周次', '填写人', '商户准入数', '禁止准入数', '合计'];
     rows = sorted.map(d => {
       const t = (d.merchApprove || 0) + (d.merchReject || 0);
-      const r = t === 0 ? '--' : Math.round((d.merchApprove || 0) / t * 100) + '%';
-      return [d.week, d.person, d.merchApprove || 0, d.merchReject || 0, t, r];
+      return [d.week, d.person, d.merchApprove || 0, d.merchReject || 0, t];
     });
     filename = `商户准入数据_${new Date().toISOString().slice(0,10)}.csv`;
   } else if (type === 'audit') {
@@ -999,7 +974,7 @@ function exportCSV(type) {
     // 导出全部 — 统一列格式（8列，缺省留空）
     const mSorted = [...D.merchant].sort((a, b) => a.week > b.week ? -1 : a.week < b.week ? 1 : 0);
     const aSorted = [...D.audit].sort((a, b) => a.week > b.week ? -1 : a.week < b.week ? 1 : 0);
-    headers = ['类型', '周次', '填写人', '准入通过', '准入驳回', '系统通过', '系统驳回', '人工通过', '人工驳回'];
+    headers = ['类型', '周次', '填写人', '商户准入数', '禁止准入数', '系统通过', '系统驳回', '人工通过', '人工驳回'];
     const mRows = mSorted.map(d => ['商户准入', d.week, d.person || '', d.merchApprove || 0, d.merchReject || 0, '', '', '', '']);
     const aRows = aSorted.map(d => ['二级户审核', d.week, '', '', '', d.sysApprove || 0, d.sysReject || 0, d.manApprove || 0, d.manReject || 0]);
     rows = mRows.concat(aRows);
@@ -1049,14 +1024,12 @@ function renderMerchantSummary() {
   const sum = (key) => data.reduce((s, d) => s + (d[key] || 0), 0);
   const totalApp = sum('merchApprove'), totalRej = sum('merchReject');
   const totalAll = totalApp + totalRej;
-  const rate = totalAll === 0 ? '--' : Math.round(totalApp / totalAll * 100) + '%';
   const weeks = [...new Set(data.map(d => d.week))];
   const persons = [...new Set(data.map(d => d.person))].filter(Boolean);
 
   document.getElementById('sumMerchApprove').textContent = totalApp;
   document.getElementById('sumMerchReject').textContent = totalRej;
   document.getElementById('sumMerchTotal').textContent = totalAll;
-  document.getElementById('sumMerchRate').textContent = rate;
   document.getElementById('sumMerchWeeks').textContent = weeks.length;
   document.getElementById('sumMerchPersons').textContent = persons.length;
 
@@ -1074,15 +1047,13 @@ function renderMerchantSummary() {
     });
     tbody.innerHTML = Object.entries(byPerson).sort((a, b) => b[1].app - a[1].app).map(([p, v]) => {
       const t = v.app + v.rej;
-      const r = t === 0 ? '--' : Math.round(v.app / t * 100) + '%';
-      const rc = r === '--' ? '' : rateClass(parseInt(r));
-      return `<tr><td class="person-val">${p}</td><td class="approve-val">${v.app}</td><td class="reject-val">${v.rej}</td><td>${t}</td><td class="rate-val ${rc}">${r}</td></tr>`;
+      return `<tr><td class="person-val">${p}</td><td class="approve-val">${v.app}</td><td class="reject-val">${v.rej}</td><td>${t}</td></tr>`;
     }).join('');
   }
 }
 
 // ═══ 商户图表 ════════════════════════════════════
-let merchChart = null, rateChartInst = null;
+let merchChart = null;
 
 function renderMerchantChart() {
   const data = getRangeFiltered(D.merchant, 'merchStartWeek', 'merchEndWeek');
@@ -1111,11 +1082,11 @@ function renderMerchantChart() {
     data: {
       labels: weekData.map(d => displayWeekWithRange(d.week)),
       datasets: isBar ? [
-        { label: '准入通过', data: weekData.map(d => d.approve), backgroundColor: 'rgba(0,255,136,0.7)', borderColor: '#00ff88', borderWidth: 1, borderRadius: 4, barPercentage: 0.5, categoryPercentage: 0.7 },
-        { label: '准入驳回', data: weekData.map(d => d.reject), backgroundColor: 'rgba(255,51,85,0.7)', borderColor: '#ff3355', borderWidth: 1, borderRadius: 4, barPercentage: 0.5, categoryPercentage: 0.7 },
+        { label: '商户准入数', data: weekData.map(d => d.approve), backgroundColor: 'rgba(0,255,136,0.7)', borderColor: '#00ff88', borderWidth: 1, borderRadius: 4, barPercentage: 0.5, categoryPercentage: 0.7 },
+        { label: '禁止准入数', data: weekData.map(d => d.reject), backgroundColor: 'rgba(255,51,85,0.7)', borderColor: '#ff3355', borderWidth: 1, borderRadius: 4, barPercentage: 0.5, categoryPercentage: 0.7 },
       ] : [
-        { label: '准入通过', data: weekData.map(d => d.approve), borderColor: '#00ff88', backgroundColor: 'rgba(0,255,136,0.1)', borderWidth: 2, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#00ff88', fill: true },
-        { label: '准入驳回', data: weekData.map(d => d.reject), borderColor: '#ff3355', backgroundColor: 'rgba(255,51,85,0.1)', borderWidth: 2, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#ff3355', fill: true },
+        { label: '商户准入数', data: weekData.map(d => d.approve), borderColor: '#00ff88', backgroundColor: 'rgba(0,255,136,0.1)', borderWidth: 2, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#00ff88', fill: true },
+        { label: '禁止准入数', data: weekData.map(d => d.reject), borderColor: '#ff3355', backgroundColor: 'rgba(255,51,85,0.1)', borderWidth: 2, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#ff3355', fill: true },
       ]
     },
     options: {
@@ -1150,43 +1121,6 @@ function renderMerchantChart() {
   });
 }
 
-function renderRateChart() {
-  const data = getRangeFiltered(D.merchant, 'merchStartWeek', 'merchEndWeek');
-  const personVal = document.getElementById('merchPersonFilter').value;
-  let filtered = personVal !== 'all' ? data.filter(d => d.person === personVal) : data;
-  const weeks = getWeeks(filtered);
-  const persons = personVal !== 'all' ? [personVal] : D.persons;
-  const datasets = persons.map((p, i) => {
-    const colors = ['#00ff88', '#00f0ff', '#ffaa00', '#ff00aa', '#4488ff', '#aa44ff'];
-    const c = colors[i % colors.length];
-    return {
-      label: p, spanGaps: true,
-      data: weeks.map(w => {
-        const pd = filtered.find(d => d.week === w && d.person === p);
-        if (!pd) return null;
-        const total = (pd.merchApprove || 0) + (pd.merchReject || 0);
-        return total === 0 ? null : Math.round((pd.merchApprove || 0) / total * 100);
-      }),
-      borderColor: c, backgroundColor: c + '20', tension: 0.3, pointRadius: 5, pointHoverRadius: 8,
-      pointBackgroundColor: c, borderWidth: 2, fill: false,
-    };
-  });
-
-  const ctx = document.getElementById('rateChart').getContext('2d');
-  if (rateChartInst) rateChartInst.destroy();
-  rateChartInst = new Chart(ctx, {
-    type: 'line', data: { labels: weeks.map(w => displayWeekWithRange(w)), datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#e0f0ff', font: { family: 'Rajdhani', size: 13 } } } },
-      scales: {
-        x: { ticks: { color: '#5a7a9a', font: { family: 'Rajdhani' } }, grid: { color: 'rgba(0,240,255,0.06)' } },
-        y: { min: 0, max: 100, ticks: { color: '#5a7a9a', font: { family: 'Orbitron', size: 11 }, callback: v => v + '%' }, grid: { color: 'rgba(0,240,255,0.06)' } },
-      }
-    }
-  });
-}
-
 // ═══ 商户数据表格（分页版）═══════════════════════
 function renderMerchantTable() {
   const data = getRangeFiltered(D.merchant, 'merchStartWeek', 'merchEndWeek');
@@ -1203,11 +1137,8 @@ function renderMerchantTable() {
 
   const tbody = document.getElementById('merchantTableBody');
   tbody.innerHTML = rowsToShow.length ? rowsToShow.map(d => {
-    const total = (d.merchApprove || 0) + (d.merchReject || 0);
-    const rate = total === 0 ? '--' : Math.round((d.merchApprove || 0) / total * 100) + '%';
-    const rc = rate === '--' ? '' : rateClass(parseInt(rate));
-    return `<tr><td>${displayWeekWithRange(d.week)}</td><td class="person-val">${d.person || '--'}</td><td class="approve-val">${d.merchApprove || 0}</td><td class="reject-val">${d.merchReject || 0}</td><td class="rate-val ${rc}">${rate}</td></tr>`;
-  }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--text-dim);padding:24px;">暂无匹配数据</td></tr>';
+    return `<tr><td>${displayWeekWithRange(d.week)}</td><td class="person-val">${d.person || '--'}</td><td class="approve-val">${d.merchApprove || 0}</td><td class="reject-val">${d.merchReject || 0}</td></tr>`;
+  }).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--text-dim);padding:24px;">暂无匹配数据</td></tr>';
 
   renderPagination('merchantPagination', merchPage, totalItems, () => renderMerchantTable());
 }
@@ -1432,7 +1363,6 @@ function renderPagination(containerId, pageState, totalItems, onPageChange) {
     merchPage.page = 1;
     renderMerchantSummary();
     renderMerchantChart();
-    renderRateChart();
     renderMerchantTable();
   });
 });
